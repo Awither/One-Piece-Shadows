@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+head>
   <meta charset="UTF-8" />
   <title>Shadow Fruit Power System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -52,7 +52,7 @@
     <section class="card">
       <h2>2. My Collected Shadows</h2>
       <div class="summary-row">
-        <div>Total Shadow Power (ASP): <span id="total-asp">0</span></div>
+        <div>Total Shadow Power (ASP / SPU): <span id="total-asp">0</span></div>
         <div>Spent ASP: <span id="spent-asp">0</span></div>
         <div>Available ASP: <span id="available-asp">0</span></div>
       </div>
@@ -67,7 +67,7 @@
     <!-- SECTION: Buff Selection -->
     <section class="card">
       <h2>3. Spend Shadow Power on Buffs</h2>
-      <p>Select buffs you want to “buy” with your available ASP. You can always reshuffle later.</p>
+      <p>Select buffs you want to “buy” with your available ASP (Shadow Power Units). You can reshuffle at any time.</p>
 
       <div id="buff-list" class="buff-list"></div>
 
@@ -96,11 +96,18 @@
         <select id="corpse-shadow-mode">
           <option value="active">Use all active shadows</option>
           <option value="all">Use all stored shadows</option>
+          <option value="custom">Use selected shadows below</option>
         </select>
       </div>
 
-      <button id="btn-generate-reanimation" class="btn primary">Generate Reanimated Profile</button>
-      <pre id="reanimation-output" class="output-box"></pre>
+      <div class="form-group">
+        <label for="corpse-shadow-custom">Custom Shadow Selection</label>
+        <select id="corpse-shadow-custom" multiple size="4"></select>
+        <small>Select specific shadows when “Use selected shadows below” is chosen.</small>
+      </div>
+
+      <button id="btn-generate-reanimation" class="btn primary">Generate Reanimated Stat Block</button>
+      <textarea id="reanimation-output" class="output-box editable-output" rows="12"></textarea>
     </section>
 
     <!-- SECTION: AI Ability Generator -->
@@ -118,17 +125,18 @@
 
       <button id="btn-ai-generate" class="btn primary">Generate Abilities with AI</button>
       <div id="ai-status" class="status-text"></div>
-      <pre id="ai-output" class="output-box"></pre>
+      <textarea id="ai-output" class="output-box editable-output" rows="12"></textarea>
     </section>
 
-    <!-- SECTION: Summary & Persistence -->
+    <!-- SECTION: Summary & Print -->
     <section class="card">
       <h2>6. Current Summary</h2>
-      <p>This is an at-a-glance summary of your current shadows and buffs.</p>
-      <pre id="summary-output" class="output-box"></pre>
+      <p>At-a-glance summary of your current shadows and buffs. You can edit this text and print a quick reference.</p>
+      <textarea id="summary-output" class="output-box editable-output" rows="10"></textarea>
 
       <div class="button-row">
         <button id="btn-force-save" class="btn secondary">Save Now</button>
+        <button id="btn-print-summary" class="btn secondary">Print Quick Reference</button>
         <button id="btn-reset-all" class="btn danger">Reset All Data</button>
       </div>
       <small>Data is automatically saved in your browser (localStorage).</small>
