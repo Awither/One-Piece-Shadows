@@ -1,6 +1,6 @@
 // ---------- CONFIG & CONSTANTS ----------
 
-const STORAGE_KEY = "shadowFruitState_v1";
+const STORAGE_KEY = "shadowFruitState_v2";
 
 // Proficiency tiers 0–10
 const PROFICIENCY_TIERS = [
@@ -29,120 +29,144 @@ const TEMPLATE_TIERS = [
   { value: 7, label: "7 – Final World Boss" }
 ];
 
-// Buff catalog (you can tweak costs & text)
+// Buff catalog (now with more detailed mechanics)
 const BUFFS = [
   {
     id: "temp_hp_20",
     name: "+20 Temp HP",
-    cost: 4,
+    cost: 8,
     minAsp: 0,
-    description: "Gain +20 temporary HP as shadow resilience."
+    description:
+      "Gain +20 temporary HP. These HP are from dense shadow mass and are lost first when you take damage."
   },
   {
     id: "temp_hp_50",
     name: "+50 Temp HP",
-    cost: 10,
-    minAsp: 10,
-    description: "Gain +50 temporary HP from dense shadow mass."
+    cost: 20,
+    minAsp: 100,
+    description:
+      "Gain +50 temporary HP. Represent a heavy layered shell of shadow; excellent for frontline brawling or tanking boss hits."
   },
   {
     id: "ac_plus_2",
     name: "+2 AC (Shadow Carapace)",
-    cost: 8,
-    minAsp: 8,
-    description: "Armor of condensed shadow surrounds you, bolstering defense."
+    cost: 15,
+    minAsp: 60,
+    description:
+      "Your body is wrapped in hardened shadow plates. Gain +2 bonus to AC (stacks with armor and shields, DM permitting)."
   },
   {
     id: "speed_plus_10",
     name: "+10 ft Movement",
-    cost: 6,
-    minAsp: 6,
-    description: "Shadow-slick footing increases your speed."
+    cost: 10,
+    minAsp: 30,
+    description:
+      "Shadow-slick footing accelerates you. Increase your walking speed by +10 feet. This can also apply to other movement modes at DM discretion."
   },
   {
     id: "adv_dex_saves",
     name: "Advantage on DEX Saves",
-    cost: 8,
-    minAsp: 8,
-    description: "Shadows pre-echo danger, sharpening your reflexes."
+    cost: 12,
+    minAsp: 50,
+    description:
+      "Shadows pre-echo danger. You gain advantage on Dexterity saving throws against effects you can perceive."
   },
   {
     id: "adv_str_checks",
     name: "Advantage on STR Checks",
-    cost: 6,
-    minAsp: 6,
-    description: "Shadow muscle reinforces your physical power."
+    cost: 10,
+    minAsp: 40,
+    description:
+      "Shadow muscle reinforces you. You gain advantage on Strength checks (grapples, shoves, forced entries, etc.)."
   },
   {
     id: "str_plus_2",
     name: "+2 STR (Shadow Muscles)",
-    cost: 10,
-    minAsp: 10,
-    description: "Shadow mass coils around you, boosting raw strength."
+    cost: 18,
+    minAsp: 80,
+    description:
+      "Thick cords of shadow coil around your limbs. Increase your Strength score by +2 (not above any campaign cap)."
   },
   {
     id: "dex_plus_2",
     name: "+2 DEX (Shadow Reflexes)",
-    cost: 10,
-    minAsp: 10,
-    description: "Shadows anticipate movement, enhancing agility."
+    cost: 18,
+    minAsp: 80,
+    description:
+      "Your movements blur with murky afterimages. Increase your Dexterity score by +2 (not above any campaign cap)."
   },
   {
     id: "con_plus_2",
     name: "+2 CON (Shadow Fortification)",
-    cost: 12,
-    minAsp: 12,
-    description: "Your form becomes unnaturally robust and hard to kill."
+    cost: 20,
+    minAsp: 100,
+    description:
+      "Your body is packed with shadow density. Increase your Constitution score by +2, and treat this as a supernatural enhancement."
   },
   {
     id: "resist_nonmagical",
     name: "Resistance to Non-magical Weapon Damage",
-    cost: 12,
-    minAsp: 12,
-    description: "Shadows disperse incoming mundane blows."
+    cost: 25,
+    minAsp: 120,
+    description:
+      "Normal blades and bullets pass through half-shadow. You take half damage from non-magical weapon attacks."
   },
   {
     id: "shadow_step",
-    name: "Shadow Step (10–20 ft)",
-    cost: 8,
-    minAsp: 8,
-    description: "Short-range teleport between patches of shadow."
+    name: "Shadow Step (15–30 ft)",
+    cost: 15,
+    minAsp: 70,
+    description:
+      "As a bonus action, you teleport between areas of dim light or darkness within 15–30 ft. Uses per rest as agreed with the DM (e.g., 3–5 times)."
   },
   {
     id: "shadow_weapon",
     name: "Shadow Weapon",
-    cost: 8,
-    minAsp: 8,
-    description: "Manifest a shadow weapon that deals extra necrotic damage."
+    cost: 14,
+    minAsp: 60,
+    description:
+      "Manifest a melee weapon of condensed shadow. Attack uses your normal attack bonus. On hit: weapon’s normal damage + 1d8–2d8 necrotic (scales by level). Counts as magical for overcoming resistance."
   },
   {
     id: "shadow_clone_minor",
-    name: "Minor Shadow Clone",
-    cost: 10,
-    minAsp: 10,
-    description: "Create a minor shadow clone that can fight or assist."
+    name: "Minor Shadow Clone (AC 14, 25 HP)",
+    cost: 18,
+    minAsp: 80,
+    description:
+      "Summon a minor clone: AC 14, 25 HP, Speed 30 ft. Attack: +5 to hit, 1d8+3 necrotic (shadow strike). It obeys your commands and vanishes at 0 HP or when dismissed."
   },
   {
     id: "shadow_form_overdrive",
     name: "Shadow Overdrive Form",
-    cost: 18,
-    minAsp: 18,
-    description: "+2 STR, +2 DEX, +20 temp HP, +10 ft speed for a short duration."
+    cost: 35,
+    minAsp: 150,
+    description:
+      "Short burst transformation (about 1 minute): +2 STR, +2 DEX, +20 temp HP, +10 ft speed, and advantage on one type of physical saves (STR or DEX)."
   },
   {
-    id: "shadow_asgard_like",
-    name: "Night Emperor / Shadow Asgard Mode",
-    cost: 40,
-    minAsp: 40,
-    description: "Huge transformation, massive temp HP and resistances. Once per major scene."
+    id: "night_emperor_form",
+    name: "Night Emperor Form",
+    cost: 60,
+    minAsp: 300,
+    description:
+      "Medium-scale transformation. Appearance: tall, regal silhouette with flowing shadow cloak. Gains: +2 STR, +2 CON, +2 AC, +40 temp HP, and one powerful shadow technique (big AOE or battlefield control)."
+  },
+  {
+    id: "shadow_asgard_form",
+    name: "Shadow Asgard Colossus",
+    cost: 120,
+    minAsp: 700,
+    description:
+      "Massive form inspired by Moria’s Shadow Asgard. Become Huge, gain +4 STR, +4 CON, +5 AC, +100 temp HP, and resistance to all damage except radiant/force for a short duration (about 1 minute). You also gain a devastating signature attack and enhanced reach."
   }
 ];
 
 // ---------- STATE ----------
 
 let state = {
-  shadows: [], // { id, name, rawMight, ptValue, ptLabel, ttValue, ttLabel, shadowLevel, active }
-  selectedBuffIds: [] // array of buff.id
+  // each shadow: { id, name, rawMight, ptValue, ptLabel, ttValue, ttLabel, shadowLevel, shadowPower, active }
+  shadows: [],
+  selectedBuffIds: []
 };
 
 // ---------- UTILITIES ----------
@@ -151,15 +175,21 @@ function clamp(num, min, max) {
   return Math.max(min, Math.min(max, num));
 }
 
+// Shadow Level: SL = clamp(floor(RMR / 2) + PT + TT, 1, 10)
+// Shadow Power Units (SPU) = SL^3
 function computeShadowLevel(rawMight, ptValue, ttValue) {
   const base = Math.floor(rawMight / 2);
   const slRaw = base + ptValue + ttValue;
   return clamp(slRaw, 1, 10);
 }
 
+function computeShadowPower(shadowLevel) {
+  return Math.pow(shadowLevel, 3); // civilians: 1, gods: 1000
+}
+
 function getShadowTotals() {
   const totalAsp = state.shadows.reduce(
-    (sum, s) => sum + (s.active ? s.shadowLevel : 0),
+    (sum, s) => sum + (s.active ? s.shadowPower : 0),
     0
   );
   const spentAsp = state.selectedBuffIds.reduce((sum, buffId) => {
@@ -218,6 +248,18 @@ function populateSelectOptions() {
   });
 }
 
+function renderCorpseShadowCustomSelect() {
+  const sel = document.getElementById("corpse-shadow-custom");
+  if (!sel) return;
+  sel.innerHTML = "";
+  state.shadows.forEach((s) => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = `${s.name || "(Unnamed)"} (SL ${s.shadowLevel}, ${s.shadowPower} SPU)`;
+    sel.appendChild(opt);
+  });
+}
+
 function renderShadowList() {
   const listEl = document.getElementById("shadow-list");
   const emptyEl = document.getElementById("shadow-list-empty");
@@ -226,6 +268,7 @@ function renderShadowList() {
 
   if (!state.shadows.length) {
     emptyEl.style.display = "block";
+    renderCorpseShadowCustomSelect();
     return;
   }
 
@@ -245,7 +288,7 @@ function renderShadowList() {
     const meta = document.createElement("div");
     meta.className = "shadow-meta";
     meta.textContent =
-      `SL ${shadow.shadowLevel} | Raw Might ${shadow.rawMight} | ` +
+      `SL ${shadow.shadowLevel} | SPU ${shadow.shadowPower} | Raw Might ${shadow.rawMight} | ` +
       `${shadow.ptLabel} | ${shadow.ttLabel}`;
     main.appendChild(meta);
 
@@ -261,6 +304,8 @@ function renderShadowList() {
       shadow.active = activeCheckbox.checked;
       saveState();
       renderTotals();
+      renderBuffList();
+      renderSelectedBuffs();
       updateSummary();
     });
     activeLabel.appendChild(activeCheckbox);
@@ -273,10 +318,11 @@ function renderShadowList() {
     removeBtn.textContent = "Remove";
     removeBtn.addEventListener("click", () => {
       state.shadows = state.shadows.filter((s) => s.id !== shadow.id);
-      // Also clear buffs if you want auto-reset when big changes happen – here we keep them
       saveState();
       renderShadowList();
       renderTotals();
+      renderBuffList();
+      renderSelectedBuffs();
       updateSummary();
     });
     controls.appendChild(removeBtn);
@@ -286,6 +332,8 @@ function renderShadowList() {
 
     listEl.appendChild(card);
   });
+
+  renderCorpseShadowCustomSelect();
 }
 
 function renderTotals() {
@@ -318,7 +366,7 @@ function renderBuffList() {
 
     const costEl = document.createElement("div");
     costEl.className = "buff-cost";
-    costEl.textContent = `${buff.cost} ASP`;
+    costEl.textContent = `${buff.cost} SPU`;
 
     header.appendChild(nameEl);
     header.appendChild(costEl);
@@ -329,7 +377,7 @@ function renderBuffList() {
 
     const meta = document.createElement("div");
     meta.className = "buff-meta";
-    meta.textContent = `Requires total ASP ≥ ${buff.minAsp}`;
+    meta.textContent = `Requires total SPU ≥ ${buff.minAsp}`;
 
     const btn = document.createElement("button");
     btn.className = "btn secondary";
@@ -337,7 +385,7 @@ function renderBuffList() {
 
     if (!canAfford || !meetsMin) {
       btn.disabled = true;
-      btn.title = "Not enough ASP or requirement not met.";
+      btn.title = "Not enough SPU or requirement not met.";
     }
 
     btn.addEventListener("click", () => {
@@ -346,7 +394,6 @@ function renderBuffList() {
           (id) => id !== buff.id
         );
       } else {
-        // Recompute fresh to avoid stale values
         const { availableAsp: currentAvail } = getShadowTotals();
         if (currentAvail < buff.cost) return;
         state.selectedBuffIds.push(buff.id);
@@ -379,14 +426,31 @@ function renderSelectedBuffs() {
   state.selectedBuffIds.forEach((buffId) => {
     const buff = BUFFS.find((b) => b.id === buffId);
     if (!buff) return;
-    const pill = document.createElement("span");
-    pill.className = "selected-buff-pill";
-    pill.textContent = buff.name + " ";
 
-    const xBtn = document.createElement("button");
-    xBtn.type = "button";
-    xBtn.textContent = "×";
-    xBtn.addEventListener("click", () => {
+    const card = document.createElement("div");
+    card.className = "selected-buff-card";
+
+    const main = document.createElement("div");
+    main.className = "selected-buff-main";
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "selected-buff-name";
+    nameEl.textContent = buff.name;
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "selected-buff-meta";
+    metaEl.textContent = `${buff.cost} SPU • ${buff.description.slice(
+      0,
+      80
+    )}${buff.description.length > 80 ? "..." : ""}`;
+
+    main.appendChild(nameEl);
+    main.appendChild(metaEl);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "selected-buff-remove";
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
       state.selectedBuffIds = state.selectedBuffIds.filter((id) => id !== buffId);
       saveState();
       renderTotals();
@@ -395,21 +459,23 @@ function renderSelectedBuffs() {
       updateSummary();
     });
 
-    pill.appendChild(xBtn);
-    container.appendChild(pill);
+    card.appendChild(main);
+    card.appendChild(removeBtn);
+    container.appendChild(card);
   });
 }
 
 function updateSummary() {
   const out = document.getElementById("summary-output");
+  if (!out) return;
   const { totalAsp, spentAsp, availableAsp } = getShadowTotals();
 
   let lines = [];
 
   lines.push("=== SHADOW SUMMARY ===");
-  lines.push(`Total ASP: ${totalAsp}`);
-  lines.push(`Spent ASP: ${spentAsp}`);
-  lines.push(`Available ASP: ${availableAsp}`);
+  lines.push(`Total Shadow Power (SPU): ${totalAsp}`);
+  lines.push(`Spent SPU on buffs: ${spentAsp}`);
+  lines.push(`Available SPU: ${availableAsp}`);
   lines.push("");
 
   if (!state.shadows.length) {
@@ -418,9 +484,11 @@ function updateSummary() {
     lines.push("Collected Shadows:");
     state.shadows.forEach((s) => {
       lines.push(
-        `- ${s.name || "(Unnamed)"} | SL ${s.shadowLevel} | Raw Might ${
-          s.rawMight
-        } | ${s.ptLabel} | ${s.ttLabel} | Active: ${s.active ? "Yes" : "No"}`
+        `- ${s.name || "(Unnamed)"} | SL ${s.shadowLevel} | SPU ${
+          s.shadowPower
+        } | Raw Might ${s.rawMight} | ${s.ptLabel} | ${s.ttLabel} | Active: ${
+          s.active ? "Yes" : "No"
+        }`
       );
     });
   }
@@ -433,12 +501,12 @@ function updateSummary() {
     state.selectedBuffIds.forEach((buffId) => {
       const buff = BUFFS.find((b) => b.id === buffId);
       if (buff) {
-        lines.push(`- ${buff.name} (${buff.cost} ASP): ${buff.description}`);
+        lines.push(`- ${buff.name} (${buff.cost} SPU): ${buff.description}`);
       }
     });
   }
 
-  out.textContent = lines.join("\n");
+  out.value = lines.join("\n");
 }
 
 // ---------- REANIMATION ----------
@@ -449,81 +517,131 @@ function generateReanimationProfile() {
     document.getElementById("corpse-durability").value
   );
   const mode = document.getElementById("corpse-shadow-mode").value;
+  const customSel = document.getElementById("corpse-shadow-custom");
 
   let usedShadows = [];
   if (mode === "active") {
     usedShadows = state.shadows.filter((s) => s.active);
-  } else {
+  } else if (mode === "all") {
     usedShadows = [...state.shadows];
+  } else if (mode === "custom" && customSel) {
+    const ids = Array.from(customSel.selectedOptions).map((o) => o.value);
+    usedShadows = state.shadows.filter((s) => ids.includes(s.id));
   }
 
   const outEl = document.getElementById("reanimation-output");
 
   if (!corpseName || !usedShadows.length) {
-    outEl.textContent =
-      "You need a corpse name and at least one shadow (active or stored) to reanimate.";
+    outEl.value =
+      "You need a corpse name and at least one shadow (active, stored, or selected) to reanimate.";
     return;
   }
 
-  const totalShadowLevel = usedShadows.reduce(
-    (sum, s) => sum + s.shadowLevel,
-    0
-  );
+  const totalSL = usedShadows.reduce((sum, s) => sum + s.shadowLevel, 0);
+  const totalSPU = usedShadows.reduce((sum, s) => sum + s.shadowPower, 0);
 
-  const effectiveDurability = clamp(
-    corpseDurability + Math.floor(totalShadowLevel / 3),
-    1,
-    15
-  );
+  // Rough stat estimation
+  const size =
+    totalSL >= 25 ? "Huge" : totalSL >= 15 ? "Large" : totalSL >= 8 ? "Medium" : "Medium";
+  const acBase = 10 + Math.floor(corpseDurability / 2) + Math.floor(totalSL / 5);
+  const hpBase = 10 * corpseDurability + 8 * totalSL;
+  const speed = 30 + (totalSL >= 15 ? 10 : 0);
 
-  const roughHP = 10 * corpseDurability + 5 * totalShadowLevel;
+  const str = 10 + corpseDurability + Math.floor(totalSL / 2);
+  const dex = 8 + Math.floor(totalSL / 3);
+  const con = 10 + corpseDurability;
+  const intStat = 6 + Math.floor(totalSL / 4);
+  const wis = 8 + Math.floor(totalSL / 4);
+  const cha = 8 + Math.floor(totalSL / 4);
+
   const powerTier =
-    totalShadowLevel >= 30
+    totalSL >= 30
       ? "Mythic Reanimated Titan"
-      : totalShadowLevel >= 18
+      : totalSL >= 18
       ? "Elite Reanimated Champion"
-      : totalShadowLevel >= 10
+      : totalSL >= 10
       ? "Reanimated Knight"
       : "Lesser Shadow Puppet";
 
   let lines = [];
-  lines.push(`=== REANIMATED CORPSE PROFILE ===`);
-  lines.push(`Corpse: ${corpseName}`);
-  lines.push(`Corpse Durability Tier: ${corpseDurability}`);
-  lines.push(`Shadows Used: ${usedShadows.length}`);
-  lines.push(`Total Shadow Level (sum): ${totalShadowLevel}`);
-  lines.push(`Effective Durability Tier: ${effectiveDurability}`);
-  lines.push(`Approx HP Benchmark: ~${roughHP}`);
-  lines.push(`Role: ${powerTier}`);
+
+  lines.push(`=== ${corpseName.toUpperCase()} ===`);
+  lines.push(`${powerTier} • ${size} undead (shadow-animated)`);
+  lines.push("");
+  lines.push(`Armor Class: ${acBase} (shadow-reinforced hide)`);
+  lines.push(`Hit Points: ~${hpBase} (DM can convert to dice)`);
+  lines.push(`Speed: ${speed} ft.`);
+  lines.push("");
+  lines.push(
+    `STR ${str}   DEX ${dex}   CON ${con}   INT ${intStat}   WIS ${wis}   CHA ${cha}`
+  );
+  lines.push("");
+  lines.push(
+    `Saving Throws: STR +${Math.floor((str - 10) / 2) + 2}, CON +${
+      Math.floor((con - 10) / 2) + 2
+    }`
+  );
+  lines.push("Skills: Perception +?, Intimidation +?");
+  lines.push("Damage Resistances: necrotic; bludgeoning, piercing, and slashing from non-magical attacks (optional).");
+  lines.push("Condition Immunities: charmed, frightened, poisoned (DM option).");
+  lines.push("Senses: darkvision 60 ft., passive Perception ??.");
+  lines.push("Languages: understands the languages it knew in life (if any); obeys the shadow fruit user.");
   lines.push("");
 
-  lines.push("Suggested Traits:");
+  lines.push("TRAITS");
   lines.push(
-    `- Gains durability and toughness based on the corpse (Tier ${corpseDurability}) plus the infused shadow levels.`
+    `• Corpse Durability. Built from a Durability Tier ${corpseDurability} body; it is physically tough and hard to dismantle.`
   );
   lines.push(
-    `- Uses physical stats and resilience from the corpse, but combat instincts and abilities influenced by the strongest shadows used.`
+    `• Infused Shadows. Infused with ${usedShadows.length} shadow(s), total SL ${totalSL}, total SPU ${totalSPU}. Its combat instincts are influenced by those shadows.`
   );
-  if (totalShadowLevel >= 15) {
+  if (totalSL >= 15) {
     lines.push(
-      `- Can manifest at least one shadow technique (e.g., Shadow Grasp, Shadow Step, or a unique named attack).`
+      "• Shadow Instincts. Gains advantage on one type of save (STR, DEX, or CON) chosen when created."
     );
   }
-  if (totalShadowLevel >= 25) {
+  if (totalSL >= 20) {
     lines.push(
-      `- May gain a minor transformation or partial Shadow Overdrive form, especially if high-tier shadows are included.`
+      "• Shadow Resilience. Once per rest, when reduced to 0 HP, it instead drops to 1 HP and shreds away part of its shadow mass."
+    );
+  }
+  lines.push("");
+
+  lines.push("ACTIONS");
+  lines.push(
+    "• Multiattack. The reanimated corpse makes two attacks: one Slam and one Shadow Lash (or two Slams)."
+  );
+  lines.push(
+    `• Slam. Melee Weapon Attack: +${Math.floor((str - 10) / 2) + 4} to hit, reach 5 ft., one target. Hit: 1d10 + ${Math.floor(
+      (str - 10) / 2
+    )} bludgeoning.`
+  );
+  if (totalSL >= 10) {
+    lines.push(
+      `• Shadow Lash. Melee Spell Attack or special attack: +${
+        5 + Math.floor(totalSL / 3)
+      } to hit, reach 10 ft., one target. Hit: 2d8 necrotic, and the target must succeed on a STR or DEX save (DC ~${10 +
+        Math.floor(totalSL / 2)}) or be grappled by shadow chains.`
+    );
+  }
+  if (totalSL >= 18) {
+    lines.push(
+      `• Shadow Burst (Recharge 5–6). The corpse erupts in a wave of shadow. Creatures within 15 ft. must make a CON save (DC ~${12 +
+        Math.floor(totalSL / 3)}) or take 3d8 necrotic damage (half on a success).`
     );
   }
 
   lines.push("");
-  lines.push("Infused Shadows:");
+  lines.push("INFUSED SHADOWS");
   usedShadows.forEach((s) => {
     lines.push(
-      `- ${s.name || "(Unnamed)"} | SL ${s.shadowLevel} | Template: ${s.ttLabel}`
+      `• ${s.name || "(Unnamed)"} – SL ${s.shadowLevel}, SPU ${
+        s.shadowPower
+      }, Template: ${s.ttLabel}`
     );
   });
 
-  outEl.textContent = lines.join("\n");
+  outEl.value = lines.join("\n");
 }
 
 // ---------- AI INTEGRATION ----------
@@ -532,7 +650,7 @@ async function callAI() {
   const statusEl = document.getElementById("ai-status");
   const outEl = document.getElementById("ai-output");
   statusEl.textContent = "Calling the shadows (AI)...";
-  outEl.textContent = "";
+  outEl.value = "";
 
   const notes = document.getElementById("ai-notes").value || "";
 
@@ -560,12 +678,12 @@ async function callAI() {
     }
 
     const data = await res.json();
-    outEl.textContent = data.text || "(No output returned from AI.)";
+    outEl.value = data.text || "(No output returned from AI.)";
     statusEl.textContent = "AI response received.";
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Error contacting AI.";
-    outEl.textContent = String(err);
+    outEl.value = String(err);
   }
 }
 
@@ -594,11 +712,12 @@ function initEvents() {
     }
 
     const sl = computeShadowLevel(rawMight, ptValue, ttValue);
+    const spu = computeShadowPower(sl);
     outEl.textContent =
-      `Shadow Level: ${sl} (from Raw Might ${rawMight}, ${ptLabel}, ${ttLabel})`;
+      `Shadow Level: ${sl} | Shadow Power Units: ${spu} ` +
+      `(from Raw Might ${rawMight}, ${ptLabel}, ${ttLabel})`;
     addBtn.disabled = false;
 
-    // Save last calc in a temporary property on the button
     addBtn.dataset.lastCalc = JSON.stringify({
       name,
       rawMight,
@@ -606,7 +725,8 @@ function initEvents() {
       ptLabel,
       ttValue,
       ttLabel,
-      shadowLevel: sl
+      shadowLevel: sl,
+      shadowPower: spu
     });
   });
 
@@ -628,6 +748,7 @@ function initEvents() {
       ttValue: payload.ttValue,
       ttLabel: payload.ttLabel,
       shadowLevel: payload.shadowLevel,
+      shadowPower: payload.shadowPower,
       active: true
     });
 
@@ -657,6 +778,22 @@ function initEvents() {
     updateSummary();
   });
 
+  document
+    .getElementById("btn-print-summary")
+    .addEventListener("click", () => {
+      const summary = document.getElementById("summary-output").value || "";
+      const win = window.open("", "_blank", "width=800,height=600");
+      if (!win) return;
+      win.document.write(
+        `<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap; font-size: 14px; line-height: 1.4; padding: 1rem;">${summary
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")}</pre>`
+      );
+      win.document.close();
+      win.focus();
+      win.print();
+    });
+
   document.getElementById("btn-reset-all").addEventListener("click", () => {
     if (!confirm("Reset all shadows and buffs?")) return;
     state = { shadows: [], selectedBuffIds: [] };
@@ -666,9 +803,12 @@ function initEvents() {
     renderBuffList();
     renderSelectedBuffs();
     updateSummary();
-    document.getElementById("reanimation-output").textContent = "";
-    document.getElementById("ai-output").textContent = "";
-    document.getElementById("ai-status").textContent = "";
+    const reOut = document.getElementById("reanimation-output");
+    const aiOut = document.getElementById("ai-output");
+    const aiStatus = document.getElementById("ai-status");
+    if (reOut) reOut.value = "";
+    if (aiOut) aiOut.value = "";
+    if (aiStatus) aiStatus.textContent = "";
   });
 }
 
