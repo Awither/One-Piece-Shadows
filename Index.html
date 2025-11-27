@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Shadow Fruit Power System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Shadow Fruit Control Panel</h1>
+    <p>Calculate shadow power, pick buffs, reanimate corpses, and generate abilities.</p>
+  </header>
+
+  <main class="app-main">
+    <!-- SECTION: Shadow Input -->
+    <section class="card">
+      <h2>1. Add a New Shadow</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="shadow-name">Name / Title</label>
+          <input type="text" id="shadow-name" placeholder="Vice Admiral, Kaido, Bandit #3" />
+        </div>
+
+        <div class="form-group">
+          <label for="raw-might">Raw Might Rating (0–20)</label>
+          <input type="number" id="raw-might" min="0" max="20" value="5" />
+          <small>Overall strength impression (0 = civilian, 20 = final world boss).</small>
+        </div>
+
+        <div class="form-group">
+          <label for="proficiency-tier">Proficiency Tier</label>
+          <select id="proficiency-tier"></select>
+          <small>How skilled/experienced they are.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="template-tier">Template Tier</label>
+          <select id="template-tier"></select>
+          <small>Human, Devil Fruit user, advanced fighter, world boss, etc.</small>
+        </div>
+      </div>
+
+      <div class="shadow-result">
+        <button id="btn-calc-shadow" class="btn primary">Calculate Shadow Level</button>
+        <div id="shadow-calc-output"></div>
+        <button id="btn-add-shadow" class="btn secondary" disabled>Add to My Shadow Collection</button>
+      </div>
+    </section>
+
+    <!-- SECTION: Shadow Collection -->
+    <section class="card">
+      <h2>2. My Collected Shadows</h2>
+      <div class="summary-row">
+        <div>Total Shadow Power (ASP): <span id="total-asp">0</span></div>
+        <div>Spent ASP: <span id="spent-asp">0</span></div>
+        <div>Available ASP: <span id="available-asp">0</span></div>
+      </div>
+
+      <div id="shadow-list-empty" class="empty-state">
+        No shadows stored yet. Add one above to start absorbing.
+      </div>
+
+      <div id="shadow-list" class="shadow-list"></div>
+    </section>
+
+    <!-- SECTION: Buff Selection -->
+    <section class="card">
+      <h2>3. Spend Shadow Power on Buffs</h2>
+      <p>Select buffs you want to “buy” with your available ASP. You can always reshuffle later.</p>
+
+      <div id="buff-list" class="buff-list"></div>
+
+      <h3>Selected Buffs</h3>
+      <div id="selected-buffs" class="selected-buffs"></div>
+    </section>
+
+    <!-- SECTION: Reanimation -->
+    <section class="card">
+      <h2>4. Reanimate a Corpse</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="corpse-name">Corpse Name / Type</label>
+          <input type="text" id="corpse-name" placeholder="Ogre corpse, Ancient dragon bones, Giant warrior" />
+        </div>
+
+        <div class="form-group">
+          <label for="corpse-durability">Corpse Durability Tier (1–10)</label>
+          <input type="number" id="corpse-durability" min="1" max="10" value="5" />
+          <small>How tough the physical body is.</small>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="corpse-shadow-mode">Which Shadows Power It?</label>
+        <select id="corpse-shadow-mode">
+          <option value="active">Use all active shadows</option>
+          <option value="all">Use all stored shadows</option>
+        </select>
+      </div>
+
+      <button id="btn-generate-reanimation" class="btn primary">Generate Reanimated Profile</button>
+      <pre id="reanimation-output" class="output-box"></pre>
+    </section>
+
+    <!-- SECTION: AI Ability Generator -->
+    <section class="card">
+      <h2>5. Ask the Shadows (AI)</h2>
+      <p>
+        Send your current shadow pool, buffs, and a theme to AI to generate named attacks,
+        unique traits, and transformation ideas.
+      </p>
+
+      <div class="form-group">
+        <label for="ai-notes">Extra Notes / Theme</label>
+        <textarea id="ai-notes" rows="4" placeholder="Example: Aggressive melee bruiser, terrifying battlefield controller, focuses on fear and grapples."></textarea>
+      </div>
+
+      <button id="btn-ai-generate" class="btn primary">Generate Abilities with AI</button>
+      <div id="ai-status" class="status-text"></div>
+      <pre id="ai-output" class="output-box"></pre>
+    </section>
+
+    <!-- SECTION: Summary & Persistence -->
+    <section class="card">
+      <h2>6. Current Summary</h2>
+      <p>This is an at-a-glance summary of your current shadows and buffs.</p>
+      <pre id="summary-output" class="output-box"></pre>
+
+      <div class="button-row">
+        <button id="btn-force-save" class="btn secondary">Save Now</button>
+        <button id="btn-reset-all" class="btn danger">Reset All Data</button>
+      </div>
+      <small>Data is automatically saved in your browser (localStorage).</small>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Shadow Fruit System • Built for your One Piece D&D campaign</p>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
