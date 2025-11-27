@@ -1,8 +1,7 @@
 // ---------- CONFIG & CONSTANTS ----------
 
-const STORAGE_KEY = "shadowFruitState_v3";
+const STORAGE_KEY = "shadowFruitState_v4";
 
-// Proficiency tiers 0–10
 const PROFICIENCY_TIERS = [
   { value: 0, label: "0 – Untrained (civilian, fodder)" },
   { value: 1, label: "1 – Basic Training (guards, recruits)" },
@@ -17,7 +16,6 @@ const PROFICIENCY_TIERS = [
   { value: 10, label: "10 – Divine (endgame monsters)" }
 ];
 
-// Template tiers 0–7
 const TEMPLATE_TIERS = [
   { value: 0, label: "0 – Ordinary Human" },
   { value: 1, label: "1 – Trained Human" },
@@ -29,7 +27,6 @@ const TEMPLATE_TIERS = [
   { value: 7, label: "7 – Final World Boss" }
 ];
 
-// Base buff catalog (built-in, not including custom buffs)
 const BASE_BUFFS = [
   {
     id: "temp_hp_20",
@@ -45,7 +42,7 @@ const BASE_BUFFS = [
     cost: 20,
     minAsp: 100,
     description:
-      "Gain +50 temporary HP. Represent a heavy layered shell of shadow; excellent for frontline brawling or tanking boss hits."
+      "Gain +50 temporary HP. Represents a heavy layered shell of shadow; great for frontline brawling or tanking boss hits."
   },
   {
     id: "ac_plus_2",
@@ -61,7 +58,7 @@ const BASE_BUFFS = [
     cost: 10,
     minAsp: 30,
     description:
-      "Shadow-slick footing accelerates you. Increase your walking speed by +10 feet. This can also apply to other movement modes at DM discretion."
+      "Shadow-slick footing accelerates you. Increase your walking speed by +10 feet. Can also apply to other movement modes at DM discretion."
   },
   {
     id: "adv_dex_saves",
@@ -101,7 +98,7 @@ const BASE_BUFFS = [
     cost: 20,
     minAsp: 100,
     description:
-      "Your body is packed with shadow density. Increase your Constitution score by +2, and treat this as a supernatural enhancement."
+      "Your body is packed with shadow density. Increase your Constitution score by +2 (not above any campaign cap)."
   },
   {
     id: "resist_nonmagical",
@@ -117,7 +114,7 @@ const BASE_BUFFS = [
     cost: 15,
     minAsp: 70,
     description:
-      "As a bonus action, you teleport between areas of dim light or darkness within 15–30 ft. Uses per rest as agreed with the DM (e.g., 3–5 times)."
+      "As a bonus action, you teleport between areas of dim light or darkness within 15–30 ft. 3–5 uses per rest (DM choice)."
   },
   {
     id: "shadow_weapon",
@@ -125,7 +122,7 @@ const BASE_BUFFS = [
     cost: 14,
     minAsp: 60,
     description:
-      "Manifest a melee weapon of condensed shadow. Attack uses your normal attack bonus. On hit: weapon’s normal damage + 1d8–2d8 necrotic (scales by level). Counts as magical for overcoming resistance."
+      "Manifest a melee weapon of condensed shadow. Attack uses your normal attack bonus. On hit: weapon’s normal damage + 1d8–2d8 necrotic (scales by level). Counts as magical."
   },
   {
     id: "shadow_clone_minor",
@@ -133,7 +130,7 @@ const BASE_BUFFS = [
     cost: 18,
     minAsp: 80,
     description:
-      "Summon a minor clone: AC 14, 25 HP, Speed 30 ft. Attack: +5 to hit, 1d8+3 necrotic (shadow strike). It obeys your commands and vanishes at 0 HP or when dismissed."
+      "Summon a minor clone: AC 14, 25 HP, Speed 30 ft. Attack: +5 to hit, 1d8+3 necrotic (shadow strike). Follows your commands and vanishes at 0 HP."
   },
   {
     id: "shadow_form_overdrive",
@@ -141,7 +138,7 @@ const BASE_BUFFS = [
     cost: 35,
     minAsp: 150,
     description:
-      "Short burst transformation (about 1 minute): +2 STR, +2 DEX, +20 temp HP, +10 ft speed, and advantage on one type of physical saves (STR or DEX)."
+      "Short burst transformation (~1 minute): +2 STR, +2 DEX, +20 temp HP, +10 ft speed, and advantage on STR or DEX saves (chosen when activated)."
   },
   {
     id: "night_emperor_form",
@@ -149,7 +146,7 @@ const BASE_BUFFS = [
     cost: 60,
     minAsp: 300,
     description:
-      "Medium-scale transformation. Appearance: tall, regal silhouette with flowing shadow cloak. Gains: +2 STR, +2 CON, +2 AC, +40 temp HP, and one powerful shadow technique (big AOE or battlefield control)."
+      "Medium-scale transformation. Appearance: tall, regal silhouette with a flowing shadow cloak. Gains: +2 STR, +2 CON, +2 AC, +40 temp HP, and one powerful battlefield-control technique (large AOE, fear, or restraining shadows)."
   },
   {
     id: "shadow_asgard_form",
@@ -157,63 +154,54 @@ const BASE_BUFFS = [
     cost: 120,
     minAsp: 700,
     description:
-      "Massive form inspired by Moria’s Shadow Asgard. Become Huge, gain +4 STR, +4 CON, +5 AC, +100 temp HP, and resistance to all damage except radiant/force for about 1 minute. You also gain a devastating signature attack and enhanced reach."
+      "Massive form inspired by Moria’s Shadow Asgard: become Huge, gain +4 STR, +4 CON, +5 AC, +100 temp HP, and resistance to all damage except radiant/force for ~1 minute. You also gain a devastating signature attack with extended reach."
   }
 ];
 
 // ---------- STATE ----------
 
 let state = {
-  // each shadow: { id, name, rawMight, ptValue, ptLabel, ttValue, ttLabel, shadowLevel, shadowPower, active, techniques: [] }
-  shadows: [],
-  // selectedBuffs: { [buffId]: count }
-  selectedBuffs: {},
-  // custom buffs: same shape as BASE_BUFFS
-  customBuffs: []
+  shadows: [],          // { id, name, rawMight, ptValue, ptLabel, ttValue, ttLabel, shadowLevel, shadowPower, active, techniques[] }
+  selectedBuffs: {},    // id -> count
+  customBuffs: [],      // custom buff objects
+  aiAbilities: []       // array of ability card objects
 };
 
-// ---------- UTILITIES ----------
+// ---------- UTILS ----------
 
 function clamp(num, min, max) {
   return Math.max(min, Math.min(max, num));
 }
 
-// NEW SHADOW LEVEL FORMULA
-// SL = clamp( floor(RMR / 2) + 0.2 * PT + 0.3 * TT, 1, 10 )
-// civilians / basic fighters won't hit 10, only true monsters will.
+// New normalized formula
 function computeShadowLevel(rawMight, ptValue, ttValue) {
-  const base = rawMight / 2; // 0–10
-  const fromPT = ptValue * 0.2;
-  const fromTT = ttValue * 0.3;
-  const slRaw = Math.floor(base + fromPT + fromTT);
-  return clamp(slRaw, 1, 10);
+  const r = clamp(rawMight, 0, 20) / 20;   // 0–1
+  const p = clamp(ptValue, 0, 10) / 10;    // 0–1
+  const t = clamp(ttValue, 0, 7) / 7;      // 0–1
+
+  const score = 0.45 * r + 0.30 * p + 0.25 * t; // 0–1
+  const sl = 1 + Math.floor(clamp(score, 0, 1) * 9); // 1–10
+  return sl;
 }
 
-// SPU: cubic scaling so bosses feel huge.
 function computeShadowPower(shadowLevel) {
-  return Math.pow(shadowLevel, 3); // SL 1 => 1, SL 10 => 1000
+  return Math.pow(clamp(shadowLevel, 1, 10), 3); // 1–1000
 }
 
 function getAllBuffs() {
   return [...BASE_BUFFS, ...state.customBuffs];
 }
 
-// stacking cost for multiple copies
-// copy 1: base
-// copy 2: base * 1.5
-// copy >=3: base * 2^(copyIndex - 2)  (exponential growth after 2)
+// stacking costs
 function getCopyCost(baseCost, copyIndex) {
   if (copyIndex <= 1) return baseCost;
   if (copyIndex === 2) return Math.round(baseCost * 1.5);
   return Math.round(baseCost * Math.pow(2, copyIndex - 2));
 }
 
-// total cost for N copies of this buff
 function getTotalCostForBuff(baseCost, count) {
   let total = 0;
-  for (let i = 1; i <= count; i++) {
-    total += getCopyCost(baseCost, i);
-  }
+  for (let i = 1; i <= count; i++) total += getCopyCost(baseCost, i);
   return total;
 }
 
@@ -259,9 +247,8 @@ function loadState() {
           parsed.selectedBuffs && typeof parsed.selectedBuffs === "object"
             ? parsed.selectedBuffs
             : {},
-        customBuffs: Array.isArray(parsed.customBuffs)
-          ? parsed.customBuffs
-          : []
+        customBuffs: Array.isArray(parsed.customBuffs) ? parsed.customBuffs : [],
+        aiAbilities: Array.isArray(parsed.aiAbilities) ? parsed.aiAbilities : []
       };
     }
   } catch (err) {
@@ -269,7 +256,7 @@ function loadState() {
   }
 }
 
-// ---------- RENDER FUNCTIONS ----------
+// ---------- RENDER: SELECT OPTIONS ----------
 
 function populateSelectOptions() {
   const profSel = document.getElementById("proficiency-tier");
@@ -290,6 +277,8 @@ function populateSelectOptions() {
   });
 }
 
+// ---------- RENDER: SHADOW LIST ----------
+
 function renderCorpseShadowCustomSelect() {
   const sel = document.getElementById("corpse-shadow-custom");
   if (!sel) return;
@@ -307,7 +296,6 @@ function renderCorpseShadowCustomSelect() {
 function renderShadowList() {
   const listEl = document.getElementById("shadow-list");
   const emptyEl = document.getElementById("shadow-list-empty");
-
   listEl.innerHTML = "";
 
   if (!state.shadows.length) {
@@ -315,7 +303,6 @@ function renderShadowList() {
     renderCorpseShadowCustomSelect();
     return;
   }
-
   emptyEl.style.display = "none";
 
   state.shadows.forEach((shadow) => {
@@ -343,10 +330,9 @@ function renderShadowList() {
 
     const techArea = document.createElement("textarea");
     techArea.className = "shadow-tech-input";
-    const existingTech = Array.isArray(shadow.techniques)
-      ? shadow.techniques
-      : [];
-    techArea.value = existingTech.join("\n");
+    techArea.value = Array.isArray(shadow.techniques)
+      ? shadow.techniques.join("\n")
+      : "";
     techArea.addEventListener("change", () => {
       const lines = techArea.value
         .split("\n")
@@ -361,7 +347,6 @@ function renderShadowList() {
     const controls = document.createElement("div");
     controls.className = "shadow-controls";
 
-    // Active toggle
     const activeLabel = document.createElement("label");
     const activeCheckbox = document.createElement("input");
     activeCheckbox.type = "checkbox";
@@ -378,7 +363,6 @@ function renderShadowList() {
     activeLabel.appendChild(document.createTextNode("Active"));
     controls.appendChild(activeLabel);
 
-    // Remove button
     const removeBtn = document.createElement("button");
     removeBtn.className = "btn danger";
     removeBtn.textContent = "Remove";
@@ -407,6 +391,8 @@ function renderTotals() {
   document.getElementById("spent-asp").textContent = spentAsp;
   document.getElementById("available-asp").textContent = availableAsp;
 }
+
+// ---------- RENDER: BUFFS ----------
 
 function renderBuffList() {
   const listEl = document.getElementById("buff-list");
@@ -526,8 +512,12 @@ function renderSelectedBuffs() {
   const entries = Object.entries(state.selectedBuffs).filter(
     ([, count]) => count > 0
   );
+
   if (!entries.length) {
-    container.textContent = "No buffs selected yet.";
+    const emptyEl = document.createElement("div");
+    emptyEl.className = "selected-buffs-empty";
+    emptyEl.textContent = "No buffs selected yet.";
+    container.appendChild(emptyEl);
     return;
   }
 
@@ -549,10 +539,7 @@ function renderSelectedBuffs() {
 
     const metaEl = document.createElement("div");
     metaEl.className = "selected-buff-meta";
-    metaEl.textContent = `Total cost: ${totalCost} SPU • ${buff.description.slice(
-      0,
-      80
-    )}${buff.description.length > 80 ? "..." : ""}`;
+    metaEl.textContent = `Total cost: ${totalCost} SPU • ${buff.description}`;
 
     main.appendChild(nameEl);
     main.appendChild(metaEl);
@@ -575,11 +562,13 @@ function renderSelectedBuffs() {
   });
 }
 
+// ---------- SUMMARY ----------
+
 function updateSummary() {
   const out = document.getElementById("summary-output");
   if (!out) return;
-  const { totalAsp, spentAsp, availableAsp } = getShadowTotals();
 
+  const { totalAsp, spentAsp, availableAsp } = getShadowTotals();
   const allBuffs = getAllBuffs();
   const buffMap = Object.fromEntries(allBuffs.map((b) => [b.id, b]));
 
@@ -631,7 +620,7 @@ function updateSummary() {
   out.value = lines.join("\n");
 }
 
-// ---------- REANIMATION ----------
+// ---------- REANIMATION CARD ----------
 
 function generateReanimationProfile() {
   const corpseName = document.getElementById("corpse-name").value.trim();
@@ -651,21 +640,37 @@ function generateReanimationProfile() {
     usedShadows = state.shadows.filter((s) => ids.includes(s.id));
   }
 
-  const outEl = document.getElementById("reanimation-output");
+  // Ad-hoc shadow
+  const adhocName = document
+    .getElementById("corpse-extra-shadow-name")
+    .value.trim();
+  const adhocSL = Number(
+    document.getElementById("corpse-extra-shadow-sl").value
+  );
+  let adhocShadow = null;
+  if (adhocName && !isNaN(adhocSL) && adhocSL >= 1) {
+    adhocShadow = {
+      name: adhocName,
+      shadowLevel: clamp(adhocSL, 1, 10),
+      shadowPower: computeShadowPower(adhocSL),
+      ttLabel: "Ad-hoc Shadow"
+    };
+    usedShadows.push(adhocShadow);
+  }
 
   if (!corpseName || !usedShadows.length) {
-    outEl.value =
-      "You need a corpse name and at least one shadow (active, stored, or selected) to reanimate.";
+    alert("You need a corpse name and at least one shadow to reanimate.");
     return;
   }
 
   const totalSL = usedShadows.reduce((sum, s) => sum + s.shadowLevel, 0);
   const totalSPU = usedShadows.reduce((sum, s) => sum + s.shadowPower, 0);
 
-  // Rough stat estimation
   const size =
     totalSL >= 25 ? "Huge" : totalSL >= 15 ? "Large" : totalSL >= 8 ? "Medium" : "Medium";
-  const acBase = 10 + Math.floor(corpseDurability / 2) + Math.floor(totalSL / 5);
+
+  const acBase =
+    10 + Math.floor(corpseDurability / 2) + Math.floor(totalSL / 5);
   const hpBase = 10 * corpseDurability + 8 * totalSL;
   const speed = 30 + (totalSL >= 15 ? 10 : 0);
 
@@ -685,89 +690,95 @@ function generateReanimationProfile() {
       ? "Reanimated Knight"
       : "Lesser Shadow Puppet";
 
-  let lines = [];
+  // Fill card inputs
+  document.getElementById("monster-name").value =
+    corpseName || "Reanimated Corpse";
+  document.getElementById(
+    "monster-tier"
+  ).textContent = `Tier: ${powerTier} (SL sum ${totalSL}, ${totalSPU} SPU)`;
+  document.getElementById("monster-subtitle").textContent =
+    `${size} undead (shadow-animated)`;
 
-  lines.push(`=== ${corpseName.toUpperCase()} ===`);
-  lines.push(`${powerTier} • ${size} undead (shadow-animated)`);
-  lines.push("");
-  lines.push(`Armor Class: ${acBase} (shadow-reinforced hide)`);
-  lines.push(`Hit Points: ~${hpBase} (DM can convert to dice)`);
-  lines.push(`Speed: ${speed} ft.`);
-  lines.push("");
-  lines.push(
-    `STR ${str}   DEX ${dex}   CON ${con}   INT ${intStat}   WIS ${wis}   CHA ${cha}`
-  );
-  lines.push("");
-  lines.push(
-    `Saving Throws (suggested): STR +${Math.floor((str - 10) / 2) + 2}, CON +${
-      Math.floor((con - 10) / 2) + 2
-    }`
-  );
-  lines.push("Skills: Perception +?, Intimidation +?");
-  lines.push(
-    "Damage Resistances: necrotic; bludgeoning, piercing, and slashing from non-magical attacks (optional)."
-  );
-  lines.push("Condition Immunities: charmed, frightened, poisoned (DM option).");
-  lines.push("Senses: darkvision 60 ft., passive Perception ??.");
-  lines.push(
-    "Languages: understands the languages it knew in life (if any); obeys the shadow fruit user."
-  );
-  lines.push("");
+  document.getElementById(
+    "monster-ac"
+  ).value = `${acBase} (shadow-reinforced hide)`;
+  document.getElementById(
+    "monster-hp"
+  ).value = `~${hpBase} (DM can convert to dice)`;
+  document.getElementById("monster-speed").value = `${speed} ft.`;
 
-  lines.push("TRAITS");
-  lines.push(
-    `• Corpse Durability. Built from a Durability Tier ${corpseDurability} body; it is physically tough and hard to dismantle.`
+  document.getElementById("monster-str").value = str;
+  document.getElementById("monster-dex").value = dex;
+  document.getElementById("monster-con").value = con;
+  document.getElementById("monster-int").value = intStat;
+  document.getElementById("monster-wis").value = wis;
+  document.getElementById("monster-cha").value = cha;
+
+  const saveStr = Math.floor((str - 10) / 2) + 2;
+  const saveCon = Math.floor((con - 10) / 2) + 2;
+
+  const traitsLines = [];
+  traitsLines.push(
+    `Corpse Durability. Built from a Durability Tier ${corpseDurability} body; it is physically tough and hard to dismantle.`
   );
-  lines.push(
-    `• Infused Shadows. Infused with ${usedShadows.length} shadow(s), total SL ${totalSL}, total SPU ${totalSPU}. Its combat instincts are influenced by those shadows.`
+  traitsLines.push(
+    `Infused Shadows. Infused with ${usedShadows.length} shadow(s), total SL ${totalSL}, total SPU ${totalSPU}. Its instincts and aggression are shaped by those shadows.`
   );
   if (totalSL >= 15) {
-    lines.push(
-      "• Shadow Instincts. Gains advantage on one type of save (STR, DEX, or CON) chosen when created."
+    traitsLines.push(
+      "Shadow Instincts. Gains advantage on one type of save (STR, DEX, or CON) chosen when created."
     );
   }
   if (totalSL >= 20) {
-    lines.push(
-      "• Shadow Resilience. Once per rest, when reduced to 0 HP, it instead drops to 1 HP and shreds away part of its shadow mass."
+    traitsLines.push(
+      "Shadow Resilience. Once per rest, when reduced to 0 HP, it instead drops to 1 HP and shreds away part of its shadow mass."
     );
   }
-  lines.push("");
-
-  lines.push("ACTIONS");
-  lines.push(
-    "• Multiattack. The reanimated corpse makes two attacks: one Slam and one Shadow Lash (or two Slams)."
+  traitsLines.push(
+    "Damage Resistances: necrotic; bludgeoning, piercing, and slashing from non-magical attacks (optional)."
   );
-  lines.push(
-    `• Slam. Melee Weapon Attack: +${Math.floor((str - 10) / 2) + 4} to hit, reach 5 ft., one target. Hit: 1d10 + ${Math.floor(
+  traitsLines.push(
+    "Condition Immunities: charmed, frightened, poisoned (DM option)."
+  );
+  traitsLines.push(
+    "Senses: darkvision 60 ft., passive Perception ??. Languages: understands its languages in life (if any); obeys the shadow fruit user."
+  );
+  document.getElementById("monster-traits").value = traitsLines.join("\n");
+
+  const actionsLines = [];
+  actionsLines.push(
+    "Multiattack. The reanimated corpse makes two attacks: one Slam and one Shadow Lash (or two Slams)."
+  );
+  actionsLines.push(
+    `Slam. Melee Weapon Attack: +${Math.floor((str - 10) / 2) + 4} to hit, reach 5 ft., one target. Hit: 1d10 + ${Math.floor(
       (str - 10) / 2
-    )} bludgeoning.`
+    )} bludgeoning damage.`
   );
   if (totalSL >= 10) {
-    lines.push(
-      `• Shadow Lash. Melee spell-like attack: +${
+    actionsLines.push(
+      `Shadow Lash. Melee spell-like attack: +${
         5 + Math.floor(totalSL / 3)
-      } to hit, reach 10 ft., one target. Hit: 2d8 necrotic, and the target must succeed on a STR or DEX save (DC ~${10 +
-        Math.floor(totalSL / 2)}) or be grappled by shadow chains.`
+      } to hit, reach 10 ft., one target. Hit: 2d8 necrotic damage, and the target must succeed on a STR or DEX save (DC ~${10 +
+        Math.floor(totalSL / 2)}) or be grappled by writhing shadow chains.`
     );
   }
   if (totalSL >= 18) {
-    lines.push(
-      `• Shadow Burst (Recharge 5–6). The corpse erupts in a wave of shadow. Creatures within 15 ft. must make a CON save (DC ~${12 +
+    actionsLines.push(
+      `Shadow Burst (Recharge 5–6). The corpse erupts in a wave of shadow. Creatures within 15 ft. must make a CON save (DC ~${12 +
         Math.floor(totalSL / 3)}) or take 3d8 necrotic damage (half on a success).`
     );
   }
+  document.getElementById("monster-actions").value = actionsLines.join("\n");
 
-  lines.push("");
-  lines.push("INFUSED SHADOWS");
+  const infusedLines = [];
   usedShadows.forEach((s) => {
-    lines.push(
+    infusedLines.push(
       `• ${s.name || "(Unnamed)"} – SL ${s.shadowLevel}, SPU ${
         s.shadowPower
-      }, Template: ${s.ttLabel}`
+      }, Template: ${s.ttLabel || "—"}`
     );
   });
-
-  outEl.value = lines.join("\n");
+  document.getElementById("monster-shadows").value = infusedLines.join("\n");
 }
 
 // ---------- DC HELPER ----------
@@ -777,23 +788,247 @@ function calcDC() {
   const mod = Number(document.getElementById("dc-spell-mod").value);
   const prof = Number(document.getElementById("dc-prof").value);
 
-  const shadowBonus = Math.floor(sl / 2); // extra weight from how strong your shadow is
-  const dc = 8 + mod + (isNaN(prof) ? 0 : prof) + shadowBonus;
+  const shadowBonus = Math.floor(clamp(sl, 1, 10) / 2); // 0–5
+  const dc = 8 + (isNaN(mod) ? 0 : mod) + (isNaN(prof) ? 0 : prof) + shadowBonus;
 
   const out = document.getElementById("dc-output");
-  out.textContent = `Suggested DC: ${dc}  (8 + mod ${mod} + prof ${prof || 0} + shadow bonus ${shadowBonus})`;
+  out.textContent = `Suggested DC: ${dc}  (8 + mod ${mod || 0} + prof ${prof ||
+    0} + shadow bonus ${shadowBonus})`;
 }
 
-// ---------- AI INTEGRATION ----------
+// ---------- AI ABILITIES (PANEL 5) ----------
 
-async function callAI() {
+function renderAbilities() {
+  const container = document.getElementById("ai-abilities");
+  container.innerHTML = "";
+
+  if (!state.aiAbilities.length) {
+    const empty = document.createElement("div");
+    empty.className = "status-text";
+    empty.textContent =
+      "No abilities yet. Click “Generate Abilities with AI” or “Add Empty Ability Card.”";
+    container.appendChild(empty);
+    return;
+  }
+
+  state.aiAbilities.forEach((ab, index) => {
+    const card = document.createElement("div");
+    card.className = "ability-card";
+
+    const header = document.createElement("div");
+    header.className = "ability-header";
+
+    const nameInput = document.createElement("input");
+    nameInput.className = "ability-name-input";
+    nameInput.value = ab.name || "";
+    nameInput.placeholder = "Ability Name";
+    nameInput.addEventListener("input", () => {
+      ab.name = nameInput.value;
+      saveState();
+    });
+
+    const tierBadge = document.createElement("div");
+    tierBadge.className = "ability-tier-badge";
+    tierBadge.innerHTML = `<div>${ab.tier || "SL"}</div><div>${ab.shadowLevel ||
+      "-"}</div>`;
+
+    header.appendChild(nameInput);
+    header.appendChild(tierBadge);
+
+    const tags = document.createElement("div");
+    tags.className = "ability-tags";
+    tags.textContent =
+      ab.role || "Role: Offense / Defense / Support / Control / Utility";
+
+    const shortDesc = document.createElement("textarea");
+    shortDesc.className = "ability-short-desc";
+    shortDesc.value = ab.shortDesc || "";
+    shortDesc.placeholder =
+      "Short one-sentence summary of what this ability does.";
+    shortDesc.addEventListener("input", () => {
+      ab.shortDesc = shortDesc.value;
+      saveState();
+    });
+
+    const longDesc = document.createElement("textarea");
+    longDesc.className = "ability-long-desc";
+    longDesc.value = ab.longDesc || "";
+    longDesc.placeholder =
+      "Longer flavor + mechanical description of the ability.";
+    longDesc.addEventListener("input", () => {
+      ab.longDesc = longDesc.value;
+      saveState();
+    });
+
+    const fieldsGrid = document.createElement("div");
+    fieldsGrid.className = "ability-fields-grid";
+
+    function makeField(label, key) {
+      const wrap = document.createElement("div");
+      wrap.className = "ability-field";
+      const l = document.createElement("div");
+      l.className = "label";
+      l.textContent = label;
+      const input = document.createElement("input");
+      input.value = ab[key] || "";
+      input.addEventListener("input", () => {
+        ab[key] = input.value;
+        saveState();
+      });
+      wrap.appendChild(l);
+      wrap.appendChild(input);
+      return wrap;
+    }
+
+    fieldsGrid.appendChild(makeField("Action", "action"));
+    fieldsGrid.appendChild(makeField("Range", "range"));
+    fieldsGrid.appendChild(makeField("Target", "target"));
+    fieldsGrid.appendChild(makeField("Save", "save"));
+    fieldsGrid.appendChild(makeField("DC", "dc"));
+    fieldsGrid.appendChild(makeField("Damage", "damage"));
+
+    const effect = document.createElement("textarea");
+    effect.className = "ability-effect";
+    effect.value = ab.effect || "";
+    effect.placeholder = "Mechanical effect: what happens on hit / failed save.";
+    effect.addEventListener("input", () => {
+      ab.effect = effect.value;
+      saveState();
+    });
+
+    const notes = document.createElement("textarea");
+    notes.className = "ability-notes";
+    notes.value = ab.notes || "";
+    notes.placeholder = "Optional: how this interacts with other powers / combo logic.";
+    notes.addEventListener("input", () => {
+      ab.notes = notes.value;
+      saveState();
+    });
+
+    const buttons = document.createElement("div");
+    buttons.className = "ability-buttons";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "btn secondary";
+    copyBtn.textContent = "Copy";
+    copyBtn.addEventListener("click", async () => {
+      const text = buildAbilityText(ab);
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // ignore errors
+      }
+    });
+
+    const rerollBtn = document.createElement("button");
+    rerollBtn.className = "btn secondary";
+    rerollBtn.textContent = "Reroll";
+    rerollBtn.addEventListener("click", () => {
+      callAI(index);
+    });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "btn danger";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.addEventListener("click", () => {
+      state.aiAbilities.splice(index, 1);
+      saveState();
+      renderAbilities();
+    });
+
+    buttons.appendChild(copyBtn);
+    buttons.appendChild(rerollBtn);
+    buttons.appendChild(deleteBtn);
+
+    card.appendChild(header);
+    card.appendChild(tags);
+    card.appendChild(shortDesc);
+    card.appendChild(longDesc);
+    card.appendChild(fieldsGrid);
+    card.appendChild(effect);
+    card.appendChild(notes);
+    card.appendChild(buttons);
+
+    container.appendChild(card);
+  });
+}
+
+function buildAbilityText(ab) {
+  return [
+    `Name: ${ab.name || ""}`,
+    ab.role ? `Role: ${ab.role}` : "",
+    "",
+    ab.shortDesc || "",
+    "",
+    ab.longDesc || "",
+    "",
+    `Action: ${ab.action || ""}`,
+    `Range: ${ab.range || ""}`,
+    `Target: ${ab.target || ""}`,
+    `Save: ${ab.save || ""}`,
+    `DC: ${ab.dc || ""}`,
+    `Damage: ${ab.damage || ""}`,
+    "",
+    `Effect: ${ab.effect || ""}`,
+    ab.notes ? `Notes: ${ab.notes}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+// very simple parser: split text by lines starting with "### "
+function parseAbilitiesFromText(text) {
+  if (!text || typeof text !== "string") return [];
+
+  const lines = text.split("\n");
+  const sections = [];
+  let current = [];
+
+  for (const line of lines) {
+    if (line.trim().startsWith("### ")) {
+      if (current.length) sections.push(current.join("\n").trim());
+      current = [line.trim()];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length) sections.push(current.join("\n").trim());
+
+  if (!sections.length) sections.push(text.trim());
+
+  return sections.map((block, idx) => {
+    const bLines = block.split("\n");
+    let name = `Shadow Ability ${idx + 1}`;
+    if (bLines[0].startsWith("### ")) {
+      name = bLines[0].replace(/^###\s*/, "").trim() || name;
+      bLines.shift();
+    }
+    const body = bLines.join("\n").trim();
+
+    return {
+      name,
+      role: "",
+      tier: "PL",
+      shadowLevel: "",
+      shortDesc: body.split("\n")[0] || "",
+      longDesc: body,
+      action: "",
+      range: "",
+      target: "",
+      save: "",
+      dc: "",
+      damage: "",
+      effect: "",
+      notes: ""
+    };
+  });
+}
+
+async function callAI(focusIndex = null) {
   const statusEl = document.getElementById("ai-status");
-  const outEl = document.getElementById("ai-output");
   statusEl.textContent = "Calling the shadows (AI)...";
-  outEl.value = "";
 
   const notes = document.getElementById("ai-notes").value || "";
-
   const { totalAsp, spentAsp, availableAsp } = getShadowTotals();
 
   const payload = {
@@ -801,10 +1036,10 @@ async function callAI() {
     totalAsp,
     spentAsp,
     availableAsp,
-    // keep old key for compatibility + new structured one
     selectedBuffIds: Object.keys(state.selectedBuffs),
     selectedBuffs: state.selectedBuffs,
-    notes
+    notes,
+    focusIndex
   };
 
   try {
@@ -820,16 +1055,31 @@ async function callAI() {
     }
 
     const data = await res.json();
-    outEl.value = data.text || "(No output returned from AI.)";
+    const text = data.text || "";
+
+    const abilities = parseAbilitiesFromText(text);
+    if (!abilities.length) {
+      statusEl.textContent = "AI responded, but no abilities were parsed.";
+      return;
+    }
+
+    if (focusIndex != null && focusIndex >= 0 && focusIndex < state.aiAbilities.length) {
+      // replace just the one ability with the first parsed
+      state.aiAbilities[focusIndex] = abilities[0];
+    } else {
+      state.aiAbilities = abilities;
+    }
+
+    saveState();
+    renderAbilities();
     statusEl.textContent = "AI response received.";
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Error contacting AI.";
-    outEl.value = String(err);
   }
 }
 
-// ---------- EVENT HOOKUP ----------
+// ---------- EVENTS ----------
 
 function initEvents() {
   const calcBtn = document.getElementById("btn-calc-shadow");
@@ -855,11 +1105,12 @@ function initEvents() {
 
     const sl = computeShadowLevel(rawMight, ptValue, ttValue);
     const spu = computeShadowPower(sl);
+
     outEl.textContent =
       `Shadow Level: ${sl} | Shadow Power Units: ${spu} ` +
       `(from Raw Might ${rawMight}, ${ptLabel}, ${ttLabel})`;
-    addBtn.disabled = false;
 
+    addBtn.disabled = false;
     addBtn.dataset.lastCalc = JSON.stringify({
       name,
       rawMight,
@@ -873,9 +1124,7 @@ function initEvents() {
   });
 
   addBtn.addEventListener("click", () => {
-    const payloadRaw = document
-      .getElementById("btn-add-shadow")
-      .dataset.lastCalc;
+    const payloadRaw = addBtn.dataset.lastCalc;
     if (!payloadRaw) return;
 
     const payload = JSON.parse(payloadRaw);
@@ -896,9 +1145,8 @@ function initEvents() {
     });
 
     document.getElementById("shadow-name").value = "";
-    document.getElementById("btn-add-shadow").disabled = true;
-    document.getElementById("shadow-calc-output").textContent =
-      "Shadow added to your collection.";
+    addBtn.disabled = true;
+    outEl.textContent = "Shadow added to your collection.";
 
     saveState();
     renderShadowList();
@@ -914,9 +1162,30 @@ function initEvents() {
 
   document
     .getElementById("btn-ai-generate")
-    .addEventListener("click", callAI);
+    .addEventListener("click", () => callAI(null));
 
-  document.getElementById("btn-ai-reroll").addEventListener("click", callAI);
+  document
+    .getElementById("btn-ai-add-empty")
+    .addEventListener("click", () => {
+      state.aiAbilities.push({
+        name: "",
+        role: "",
+        tier: "PL",
+        shadowLevel: "",
+        shortDesc: "",
+        longDesc: "",
+        action: "",
+        range: "",
+        target: "",
+        save: "",
+        dc: "",
+        damage: "",
+        effect: "",
+        notes: ""
+      });
+      saveState();
+      renderAbilities();
+    });
 
   document.getElementById("btn-calc-dc").addEventListener("click", calcDC);
 
@@ -979,22 +1248,38 @@ function initEvents() {
     });
 
   document.getElementById("btn-reset-all").addEventListener("click", () => {
-    if (!confirm("Reset all shadows, buffs, and custom buffs?")) return;
-    state = { shadows: [], selectedBuffs: {}, customBuffs: [] };
+    if (!confirm("Reset all shadows, buffs, abilities, and custom buffs?")) return;
+    state = {
+      shadows: [],
+      selectedBuffs: {},
+      customBuffs: [],
+      aiAbilities: []
+    };
     saveState();
     renderShadowList();
     renderTotals();
     renderBuffList();
     renderSelectedBuffs();
+    renderAbilities();
     updateSummary();
-    const reOut = document.getElementById("reanimation-output");
-    const aiOut = document.getElementById("ai-output");
-    const aiStatus = document.getElementById("ai-status");
-    if (reOut) reOut.value = "";
-    if (aiOut) aiOut.value = "";
-    if (aiStatus) aiStatus.textContent = "";
-    const dcOut = document.getElementById("dc-output");
-    if (dcOut) dcOut.textContent = "";
+    document.getElementById("dc-output").textContent = "";
+    document.getElementById("ai-status").textContent = "";
+    document.getElementById("monster-name").value = "";
+    document.getElementById("monster-tier").textContent = "Tier: –";
+    document.getElementById("monster-subtitle").textContent =
+      "Reanimated undead (shadow-animated)";
+    document.getElementById("monster-ac").value = "";
+    document.getElementById("monster-hp").value = "";
+    document.getElementById("monster-speed").value = "";
+    document.getElementById("monster-str").value = "";
+    document.getElementById("monster-dex").value = "";
+    document.getElementById("monster-con").value = "";
+    document.getElementById("monster-int").value = "";
+    document.getElementById("monster-wis").value = "";
+    document.getElementById("monster-cha").value = "";
+    document.getElementById("monster-traits").value = "";
+    document.getElementById("monster-actions").value = "";
+    document.getElementById("monster-shadows").value = "";
   });
 }
 
@@ -1007,6 +1292,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderTotals();
   renderBuffList();
   renderSelectedBuffs();
+  renderAbilities();
   updateSummary();
   initEvents();
 });
