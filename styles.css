@@ -288,4 +288,144 @@ body {
 .buff-card {
   background: rgba(4, 7, 16, 0.98);
   border-radius: var(--radius-md);
-  border: 1px solid var(
+  border: 1px solid var(--border);
+  padding: 0.75rem 0.8rem;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.buff-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.buff-name {
+  font-weight: 600;
+}
+
+.buff-cost {
+  font-size: 0.8rem;
+  color: var(--accent-strong);
+}
+
+.buff-desc {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.buff-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.buff-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.buff-count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.buff-stepper {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.buff-stepper button {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 999px;
+}
+
+/* Selected Buffs */
+
+.selected-buffs {
+  min-height: 2.2rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border);
+  background: rgba(4, 7, 16, 0.8);
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.selected-buff-card {
+  background: rgba(10, 13, 26, 0.95);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid rgba(138, 91, 255, 0.4);
+}
+
+.selected-buff-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.selected-buff-name {
+  font-weight: 600;
+}
+
+.selected-buff-meta {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+
+.selected-buff-remove {
+  border: none;
+  background: none;
+  color: #ffb2bd;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 0.25rem;
+}
+
+/* Output & Status */
+
+.output-box {
+  background: rgba(4, 7, 16, 0.98);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  padding: 0.8rem 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  resize: vertical;
+  color: var(--text);
+  min-height: 260px;
+  white-space: pre-wrap;
+  overflow-y: auto;
+}
+
+.editable-output {
+  /* nothing extra yet, but reserved if you want special styling */
+}
+
+.status-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+}
+
+/* Footer */
+
+.app-footer {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 1rem 1.5rem 2rem;
+}
