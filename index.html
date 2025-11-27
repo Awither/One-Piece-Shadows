@@ -2,42 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Shadow Fruit Power System</title>
+  <title>Shadow Fruit Control Panel</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="app-header">
     <h1>Shadow Fruit Control Panel</h1>
-    <p>Calculate shadow power, pick buffs, reanimate corpses, and generate abilities.</p>
+    <p>Calculate shadow power, pick buffs, reanimate corpses, and generate shadow techniques.</p>
   </header>
 
   <main class="app-main">
-    <!-- SECTION: Shadow Input -->
+    <!-- 1. Add a New Shadow -->
     <section class="card">
       <h2>1. Add a New Shadow</h2>
       <div class="grid-2">
         <div class="form-group">
           <label for="shadow-name">Name / Title</label>
-          <input type="text" id="shadow-name" placeholder="Vice Admiral, Kaido, Bandit #3" />
+          <input id="shadow-name" type="text" placeholder="Vice Admiral, Kaido, Bandit #3" />
         </div>
 
         <div class="form-group">
           <label for="raw-might">Raw Might Rating (0–20)</label>
-          <input type="number" id="raw-might" min="0" max="20" value="5" />
-          <small>Overall strength impression (0 = civilian, 20 = final world boss).</small>
+          <input id="raw-might" type="number" min="0" max="20" value="5" />
+          <small>Overall impression: 0 = civilian, 20 = final world boss.</small>
         </div>
 
         <div class="form-group">
           <label for="proficiency-tier">Proficiency Tier</label>
           <select id="proficiency-tier"></select>
-          <small>How skilled/experienced they are.</small>
+          <small>How skilled / experienced they are.</small>
         </div>
 
         <div class="form-group">
           <label for="template-tier">Template Tier</label>
           <select id="template-tier"></select>
-          <small>Human, Devil Fruit user, advanced fighter, world boss, etc.</small>
+          <small>Ordinary human, devil fruit user, advanced fighter, world boss, etc.</small>
         </div>
       </div>
 
@@ -48,9 +48,10 @@
       </div>
     </section>
 
-    <!-- SECTION: Shadow Collection -->
+    <!-- 2. My Collected Shadows -->
     <section class="card">
       <h2>2. My Collected Shadows</h2>
+
       <div class="summary-row">
         <div>Total Shadow Power (SPU): <span id="total-asp">0</span></div>
         <div>Spent SPU: <span id="spent-asp">0</span></div>
@@ -64,7 +65,7 @@
       <div id="shadow-list" class="shadow-list"></div>
     </section>
 
-    <!-- SECTION: Buff Selection & Tools -->
+    <!-- 3. Spend Shadow Power on Buffs -->
     <section class="card">
       <h2>3. Spend Shadow Power on Buffs</h2>
       <p>Select buffs you want to “buy” with your available SPU (Shadow Power Units). You can stack multiple copies; each extra copy gets more expensive.</p>
@@ -78,46 +79,49 @@
 
       <h3>Custom Buff Creator</h3>
       <p>Create your own buff entries to add to the list.</p>
+
       <div class="grid-2">
         <div class="form-group">
           <label for="custom-buff-name">Buff Name</label>
-          <input type="text" id="custom-buff-name" placeholder="Shadow Fortified Bones" />
+          <input id="custom-buff-name" type="text" placeholder="Shadow Fortified Bones" />
         </div>
         <div class="form-group">
-          <label for="custom-buff-cost">Base SPU Cost (per first copy)</label>
-          <input type="number" id="custom-buff-cost" min="1" value="10" />
+          <label for="custom-buff-cost">Base SPU Cost (first copy)</label>
+          <input id="custom-buff-cost" type="number" min="1" value="10" />
         </div>
         <div class="form-group">
           <label for="custom-buff-minAsp">Minimum Total SPU Required</label>
-          <input type="number" id="custom-buff-minAsp" min="0" value="0" />
+          <input id="custom-buff-minAsp" type="number" min="0" value="0" />
         </div>
         <div class="form-group">
           <label for="custom-buff-desc">Description</label>
           <textarea id="custom-buff-desc" rows="3" placeholder="What does this buff do mechanically? AC, HP, damage, saves, etc."></textarea>
         </div>
       </div>
+
       <button id="btn-add-custom-buff" class="btn secondary">Add Custom Buff</button>
 
       <hr class="section-divider" />
 
       <h3>Shadow DC Helper</h3>
       <p>Quick helper for setting DCs on shadow techniques.</p>
+
       <div class="grid-2">
         <div class="form-group">
           <label for="dc-shadow-level">Shadow Level (SL)</label>
-          <input type="number" id="dc-shadow-level" min="1" max="10" value="5" />
-          <small>Use the strongest relevant shadow or your average SL.</small>
+          <input id="dc-shadow-level" type="number" min="1" max="10" value="5" />
+          <small>Use your strongest relevant shadow or your average SL.</small>
         </div>
         <div class="form-group">
           <label for="dc-spell-mod">Spellcasting / Ability Modifier</label>
-          <input type="number" id="dc-spell-mod" min="-5" max="10" value="4" />
-          <small>For example, +4 if your casting stat is 18.</small>
+          <input id="dc-spell-mod" type="number" min="-5" max="10" value="4" />
+          <small>Example: +4 if your casting stat is 18.</small>
         </div>
       </div>
 
       <div class="form-group">
         <label for="dc-prof">Proficiency Bonus (optional)</label>
-        <input type="number" id="dc-prof" min="0" max="10" value="3" />
+        <input id="dc-prof" type="number" min="0" max="10" value="3" />
         <small>Standard D&D style: DC = 8 + mod + prof + shadow bonus.</small>
       </div>
 
@@ -125,18 +129,19 @@
       <div id="dc-output" class="status-text"></div>
     </section>
 
-    <!-- SECTION: Reanimation -->
+    <!-- 4. Reanimate a Corpse -->
     <section class="card">
       <h2>4. Reanimate a Corpse</h2>
+
       <div class="grid-2">
         <div class="form-group">
           <label for="corpse-name">Corpse Name / Type</label>
-          <input type="text" id="corpse-name" placeholder="Ogre corpse, Ancient dragon bones, Giant warrior" />
+          <input id="corpse-name" type="text" placeholder="Ogre corpse, Ancient dragon bones, Giant warrior" />
         </div>
 
         <div class="form-group">
           <label for="corpse-durability">Corpse Durability Tier (1–10)</label>
-          <input type="number" id="corpse-durability" min="1" max="10" value="5" />
+          <input id="corpse-durability" type="number" min="1" max="10" value="5" />
           <small>How tough the physical body is.</small>
         </div>
       </div>
@@ -156,17 +161,87 @@
         <small>Select specific shadows when “Use selected shadows below” is chosen.</small>
       </div>
 
+      <div class="form-group">
+        <label for="corpse-extra-shadow-name">Add Ad-hoc Shadow (optional)</label>
+        <div class="grid-2">
+          <input id="corpse-extra-shadow-name" type="text" placeholder="Temporary Shadow Name" />
+          <input id="corpse-extra-shadow-sl" type="number" min="1" max="10" value="5" placeholder="SL" />
+        </div>
+        <small>This temporary shadow is only used for this reanimation (SPU is derived from SL³).</small>
+      </div>
+
       <button id="btn-generate-reanimation" class="btn primary">Generate Reanimated Stat Block</button>
-      <textarea id="reanimation-output" class="output-box editable-output" rows="18"></textarea>
+
+      <div id="reanimation-card" class="monster-card">
+        <div class="monster-header">
+          <input id="monster-name" class="monster-name" type="text" value="" />
+          <div id="monster-tier" class="monster-tier">Tier: –</div>
+        </div>
+        <div id="monster-subtitle" class="monster-subtitle">Reanimated undead (shadow-animated)</div>
+
+        <div class="monster-row">
+          <div class="monster-stat-box">
+            <div class="label">Armor Class</div>
+            <input id="monster-ac" type="text" />
+          </div>
+          <div class="monster-stat-box">
+            <div class="label">Hit Points</div>
+            <input id="monster-hp" type="text" />
+          </div>
+          <div class="monster-stat-box">
+            <div class="label">Speed</div>
+            <input id="monster-speed" type="text" />
+          </div>
+        </div>
+
+        <div class="monster-abilities-row">
+          <div class="ability-col">
+            <div class="label">STR</div>
+            <input id="monster-str" type="text" />
+          </div>
+          <div class="ability-col">
+            <div class="label">DEX</div>
+            <input id="monster-dex" type="text" />
+          </div>
+          <div class="ability-col">
+            <div class="label">CON</div>
+            <input id="monster-con" type="text" />
+          </div>
+          <div class="ability-col">
+            <div class="label">INT</div>
+            <input id="monster-int" type="text" />
+          </div>
+          <div class="ability-col">
+            <div class="label">WIS</div>
+            <input id="monster-wis" type="text" />
+          </div>
+          <div class="ability-col">
+            <div class="label">CHA</div>
+            <input id="monster-cha" type="text" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Traits</label>
+          <textarea id="monster-traits" class="monster-text" rows="6"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Actions</label>
+          <textarea id="monster-actions" class="monster-text" rows="8"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Infused Shadows</label>
+          <textarea id="monster-shadows" class="monster-text" rows="5"></textarea>
+        </div>
+      </div>
     </section>
 
-    <!-- SECTION: AI Ability Generator -->
+    <!-- 5. Ask the Shadows (AI) -->
     <section class="card">
       <h2>5. Ask the Shadows (AI)</h2>
-      <p>
-        Send your current shadow pool, buffs, and a theme to AI to generate named attacks,
-        unique traits, and transformation ideas.
-      </p>
+      <p>Send your current shadow pool, buffs, and a theme to AI to generate named attacks, unique traits, and transformation ideas.</p>
 
       <div class="form-group">
         <label for="ai-notes">Extra Notes / Theme</label>
@@ -175,18 +250,22 @@
 
       <div class="button-row">
         <button id="btn-ai-generate" class="btn primary">Generate Abilities with AI</button>
-        <button id="btn-ai-reroll" class="btn secondary">Reroll Abilities</button>
+        <button id="btn-ai-add-empty" class="btn secondary">Add Empty Ability Card</button>
       </div>
 
       <div id="ai-status" class="status-text"></div>
-      <textarea id="ai-output" class="output-box editable-output" rows="18"></textarea>
+
+      <div id="ai-abilities" class="ability-card-list">
+        <!-- ability cards go here -->
+      </div>
     </section>
 
-    <!-- SECTION: Summary & Print -->
+    <!-- 6. Current Summary -->
     <section class="card">
       <h2>6. Current Summary</h2>
       <p>At-a-glance summary of your current shadows, buffs, and named techniques. You can edit this text and print a quick reference.</p>
-      <textarea id="summary-output" class="output-box editable-output" rows="18"></textarea>
+
+      <textarea id="summary-output" class="output-box editable-output summary-output" rows="20"></textarea>
 
       <div class="button-row">
         <button id="btn-force-save" class="btn secondary">Save Now</button>
@@ -198,7 +277,7 @@
   </main>
 
   <footer class="app-footer">
-    <p>Shadow Fruit System • Built for your One Piece D&D campaign</p>
+    <p>Shadow Fruit System • Built for your One Piece D&amp;D campaign</p>
   </footer>
 
   <script src="script.js" defer></script>
