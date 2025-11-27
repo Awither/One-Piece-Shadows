@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-head>
+<head>
   <meta charset="UTF-8" />
   <title>Shadow Fruit Power System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -52,9 +52,9 @@ head>
     <section class="card">
       <h2>2. My Collected Shadows</h2>
       <div class="summary-row">
-        <div>Total Shadow Power (ASP / SPU): <span id="total-asp">0</span></div>
-        <div>Spent ASP: <span id="spent-asp">0</span></div>
-        <div>Available ASP: <span id="available-asp">0</span></div>
+        <div>Total Shadow Power (SPU): <span id="total-asp">0</span></div>
+        <div>Spent SPU: <span id="spent-asp">0</span></div>
+        <div>Available SPU: <span id="available-asp">0</span></div>
       </div>
 
       <div id="shadow-list-empty" class="empty-state">
@@ -64,15 +64,65 @@ head>
       <div id="shadow-list" class="shadow-list"></div>
     </section>
 
-    <!-- SECTION: Buff Selection -->
+    <!-- SECTION: Buff Selection & Tools -->
     <section class="card">
       <h2>3. Spend Shadow Power on Buffs</h2>
-      <p>Select buffs you want to “buy” with your available ASP (Shadow Power Units). You can reshuffle at any time.</p>
+      <p>Select buffs you want to “buy” with your available SPU (Shadow Power Units). You can stack multiple copies; each extra copy gets more expensive.</p>
 
       <div id="buff-list" class="buff-list"></div>
 
       <h3>Selected Buffs</h3>
       <div id="selected-buffs" class="selected-buffs"></div>
+
+      <hr class="section-divider" />
+
+      <h3>Custom Buff Creator</h3>
+      <p>Create your own buff entries to add to the list.</p>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="custom-buff-name">Buff Name</label>
+          <input type="text" id="custom-buff-name" placeholder="Shadow Fortified Bones" />
+        </div>
+        <div class="form-group">
+          <label for="custom-buff-cost">Base SPU Cost (per first copy)</label>
+          <input type="number" id="custom-buff-cost" min="1" value="10" />
+        </div>
+        <div class="form-group">
+          <label for="custom-buff-minAsp">Minimum Total SPU Required</label>
+          <input type="number" id="custom-buff-minAsp" min="0" value="0" />
+        </div>
+        <div class="form-group">
+          <label for="custom-buff-desc">Description</label>
+          <textarea id="custom-buff-desc" rows="3" placeholder="What does this buff do mechanically? AC, HP, damage, saves, etc."></textarea>
+        </div>
+      </div>
+      <button id="btn-add-custom-buff" class="btn secondary">Add Custom Buff</button>
+
+      <hr class="section-divider" />
+
+      <h3>Shadow DC Helper</h3>
+      <p>Quick helper for setting DCs on shadow techniques.</p>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="dc-shadow-level">Shadow Level (SL)</label>
+          <input type="number" id="dc-shadow-level" min="1" max="10" value="5" />
+          <small>Use the strongest relevant shadow or your average SL.</small>
+        </div>
+        <div class="form-group">
+          <label for="dc-spell-mod">Spellcasting / Ability Modifier</label>
+          <input type="number" id="dc-spell-mod" min="-5" max="10" value="4" />
+          <small>For example, +4 if your casting stat is 18.</small>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="dc-prof">Proficiency Bonus (optional)</label>
+        <input type="number" id="dc-prof" min="0" max="10" value="3" />
+        <small>Standard D&D style: DC = 8 + mod + prof + shadow bonus.</small>
+      </div>
+
+      <button id="btn-calc-dc" class="btn secondary">Calculate Suggested DC</button>
+      <div id="dc-output" class="status-text"></div>
     </section>
 
     <!-- SECTION: Reanimation -->
@@ -107,7 +157,7 @@ head>
       </div>
 
       <button id="btn-generate-reanimation" class="btn primary">Generate Reanimated Stat Block</button>
-      <textarea id="reanimation-output" class="output-box editable-output" rows="12"></textarea>
+      <textarea id="reanimation-output" class="output-box editable-output" rows="18"></textarea>
     </section>
 
     <!-- SECTION: AI Ability Generator -->
@@ -123,16 +173,20 @@ head>
         <textarea id="ai-notes" rows="4" placeholder="Example: Aggressive melee bruiser, terrifying battlefield controller, focuses on fear and grapples."></textarea>
       </div>
 
-      <button id="btn-ai-generate" class="btn primary">Generate Abilities with AI</button>
+      <div class="button-row">
+        <button id="btn-ai-generate" class="btn primary">Generate Abilities with AI</button>
+        <button id="btn-ai-reroll" class="btn secondary">Reroll Abilities</button>
+      </div>
+
       <div id="ai-status" class="status-text"></div>
-      <textarea id="ai-output" class="output-box editable-output" rows="12"></textarea>
+      <textarea id="ai-output" class="output-box editable-output" rows="18"></textarea>
     </section>
 
     <!-- SECTION: Summary & Print -->
     <section class="card">
       <h2>6. Current Summary</h2>
-      <p>At-a-glance summary of your current shadows and buffs. You can edit this text and print a quick reference.</p>
-      <textarea id="summary-output" class="output-box editable-output" rows="10"></textarea>
+      <p>At-a-glance summary of your current shadows, buffs, and named techniques. You can edit this text and print a quick reference.</p>
+      <textarea id="summary-output" class="output-box editable-output" rows="18"></textarea>
 
       <div class="button-row">
         <button id="btn-force-save" class="btn secondary">Save Now</button>
