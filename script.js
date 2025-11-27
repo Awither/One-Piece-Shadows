@@ -1,6 +1,6 @@
 // ---------- CONFIG & CONSTANTS ----------
 
-const STORAGE_KEY = "shadowFruitState_v2";
+const STORAGE_KEY = "shadowFruitState_v3";
 
 // Proficiency tiers 0–10
 const PROFICIENCY_TIERS = [
@@ -22,15 +22,15 @@ const TEMPLATE_TIERS = [
   { value: 0, label: "0 – Ordinary Human" },
   { value: 1, label: "1 – Trained Human" },
   { value: 2, label: "2 – Devil Fruit User" },
-  { value: 3, label: "3 – Advanced Fighter (Haki / master)" },
+  { value: 3, label: "3 – Advanced Fighter (basic Haki)" },
   { value: 4, label: "4 – Devil Fruit + Advanced Fighter" },
   { value: 5, label: "5 – Mythical Devil Fruit User" },
   { value: 6, label: "6 – Big Boss" },
   { value: 7, label: "7 – Final World Boss" }
 ];
 
-// Buff catalog (now with more detailed mechanics)
-const BUFFS = [
+// Base buff catalog (built-in, not including custom buffs)
+const BASE_BUFFS = [
   {
     id: "temp_hp_20",
     name: "+20 Temp HP",
@@ -157,16 +157,19 @@ const BUFFS = [
     cost: 120,
     minAsp: 700,
     description:
-      "Massive form inspired by Moria’s Shadow Asgard. Become Huge, gain +4 STR, +4 CON, +5 AC, +100 temp HP, and resistance to all damage except radiant/force for a short duration (about 1 minute). You also gain a devastating signature attack and enhanced reach."
+      "Massive form inspired by Moria’s Shadow Asgard. Become Huge, gain +4 STR, +4 CON, +5 AC, +100 temp HP, and resistance to all damage except radiant/force for about 1 minute. You also gain a devastating signature attack and enhanced reach."
   }
 ];
 
 // ---------- STATE ----------
 
 let state = {
-  // each shadow: { id, name, rawMight, ptValue, ptLabel, ttValue, ttLabel, shadowLevel, shadowPower, active }
+  // each shadow: { id, name, rawMight, ptValue, ptLabel, ttValue, ttLabel, shadowLevel, shadowPower, active, techniques: [] }
   shadows: [],
-  selectedBuffIds: []
+  // selectedBuffs: { [buffId]: count }
+  selectedBuffs: {},
+  // custom buffs: same shape as BASE_BUFFS
+  customBuffs: []
 };
 
 // ---------- UTILITIES ----------
@@ -175,16 +178,43 @@ function clamp(num, min, max) {
   return Math.max(min, Math.min(max, num));
 }
 
-// Shadow Level: SL = clamp(floor(RMR / 2) + PT + TT, 1, 10)
-// Shadow Power Units (SPU) = SL^3
+// NEW SHADOW LEVEL FORMULA
+// SL = clamp( floor(RMR / 2) + 0.2 * PT + 0.3 * TT, 1, 10 )
+// civilians / basic fighters won't hit 10, only true monsters will.
 function computeShadowLevel(rawMight, ptValue, ttValue) {
-  const base = Math.floor(rawMight / 2);
-  const slRaw = base + ptValue + ttValue;
+  const base = rawMight / 2; // 0–10
+  const fromPT = ptValue * 0.2;
+  const fromTT = ttValue * 0.3;
+  const slRaw = Math.floor(base + fromPT + fromTT);
   return clamp(slRaw, 1, 10);
 }
 
+// SPU: cubic scaling so bosses feel huge.
 function computeShadowPower(shadowLevel) {
-  return Math.pow(shadowLevel, 3); // civilians: 1, gods: 1000
+  return Math.pow(shadowLevel, 3); // SL 1 => 1, SL 10 => 1000
+}
+
+function getAllBuffs() {
+  return [...BASE_BUFFS, ...state.customBuffs];
+}
+
+// stacking cost for multiple copies
+// copy 1: base
+// copy 2: base * 1.5
+// copy >=3: base * 2^(copyIndex - 2)  (exponential growth after 2)
+function getCopyCost(baseCost, copyIndex) {
+  if (copyIndex <= 1) return baseCost;
+  if (copyIndex === 2) return Math.round(baseCost * 1.5);
+  return Math.round(baseCost * Math.pow(2, copyIndex - 2));
+}
+
+// total cost for N copies of this buff
+function getTotalCostForBuff(baseCost, count) {
+  let total = 0;
+  for (let i = 1; i <= count; i++) {
+    total += getCopyCost(baseCost, i);
+  }
+  return total;
 }
 
 function getShadowTotals() {
@@ -192,10 +222,18 @@ function getShadowTotals() {
     (sum, s) => sum + (s.active ? s.shadowPower : 0),
     0
   );
-  const spentAsp = state.selectedBuffIds.reduce((sum, buffId) => {
-    const buff = BUFFS.find((b) => b.id === buffId);
-    return buff ? sum + buff.cost : sum;
-  }, 0);
+
+  const buffMap = Object.fromEntries(getAllBuffs().map((b) => [b.id, b]));
+
+  const spentAsp = Object.entries(state.selectedBuffs).reduce(
+    (sum, [buffId, count]) => {
+      const buff = buffMap[buffId];
+      if (!buff || count <= 0) return sum;
+      return sum + getTotalCostForBuff(buff.cost, count);
+    },
+    0
+  );
+
   const availableAsp = Math.max(0, totalAsp - spentAsp);
   return { totalAsp, spentAsp, availableAsp };
 }
@@ -217,8 +255,12 @@ function loadState() {
     if (parsed && typeof parsed === "object") {
       state = {
         shadows: Array.isArray(parsed.shadows) ? parsed.shadows : [],
-        selectedBuffIds: Array.isArray(parsed.selectedBuffIds)
-          ? parsed.selectedBuffIds
+        selectedBuffs:
+          parsed.selectedBuffs && typeof parsed.selectedBuffs === "object"
+            ? parsed.selectedBuffs
+            : {},
+        customBuffs: Array.isArray(parsed.customBuffs)
+          ? parsed.customBuffs
           : []
       };
     }
@@ -255,7 +297,9 @@ function renderCorpseShadowCustomSelect() {
   state.shadows.forEach((s) => {
     const opt = document.createElement("option");
     opt.value = s.id;
-    opt.textContent = `${s.name || "(Unnamed)"} (SL ${s.shadowLevel}, ${s.shadowPower} SPU)`;
+    opt.textContent = `${s.name || "(Unnamed)"} (SL ${s.shadowLevel}, ${
+      s.shadowPower
+    } SPU)`;
     sel.appendChild(opt);
   });
 }
@@ -291,6 +335,28 @@ function renderShadowList() {
       `SL ${shadow.shadowLevel} | SPU ${shadow.shadowPower} | Raw Might ${shadow.rawMight} | ` +
       `${shadow.ptLabel} | ${shadow.ttLabel}`;
     main.appendChild(meta);
+
+    const techLabel = document.createElement("div");
+    techLabel.className = "shadow-tech-label";
+    techLabel.textContent = "Named Techniques (1 per line):";
+    main.appendChild(techLabel);
+
+    const techArea = document.createElement("textarea");
+    techArea.className = "shadow-tech-input";
+    const existingTech = Array.isArray(shadow.techniques)
+      ? shadow.techniques
+      : [];
+    techArea.value = existingTech.join("\n");
+    techArea.addEventListener("change", () => {
+      const lines = techArea.value
+        .split("\n")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      shadow.techniques = lines;
+      saveState();
+      updateSummary();
+    });
+    main.appendChild(techArea);
 
     const controls = document.createElement("div");
     controls.className = "shadow-controls";
@@ -329,7 +395,6 @@ function renderShadowList() {
 
     card.appendChild(main);
     card.appendChild(controls);
-
     listEl.appendChild(card);
   });
 
@@ -347,12 +412,16 @@ function renderBuffList() {
   const listEl = document.getElementById("buff-list");
   listEl.innerHTML = "";
 
+  const allBuffs = getAllBuffs();
   const { totalAsp, availableAsp } = getShadowTotals();
 
-  BUFFS.forEach((buff) => {
-    const selected = state.selectedBuffIds.includes(buff.id);
-    const canAfford = availableAsp >= buff.cost || selected;
-    const meetsMin = totalAsp >= buff.minAsp || selected;
+  allBuffs.forEach((buff) => {
+    const count = state.selectedBuffs[buff.id] || 0;
+    const totalCostForThisBuff = getTotalCostForBuff(buff.cost, count);
+    const nextCopyCost = getCopyCost(buff.cost, count + 1);
+
+    const canAffordNext = availableAsp >= nextCopyCost;
+    const meetsMin = totalAsp >= buff.minAsp;
 
     const card = document.createElement("div");
     card.className = "buff-card";
@@ -366,7 +435,7 @@ function renderBuffList() {
 
     const costEl = document.createElement("div");
     costEl.className = "buff-cost";
-    costEl.textContent = `${buff.cost} SPU`;
+    costEl.textContent = `${buff.cost} SPU (base)`;
 
     header.appendChild(nameEl);
     header.appendChild(costEl);
@@ -379,24 +448,30 @@ function renderBuffList() {
     meta.className = "buff-meta";
     meta.textContent = `Requires total SPU ≥ ${buff.minAsp}`;
 
-    const btn = document.createElement("button");
-    btn.className = "btn secondary";
-    btn.textContent = selected ? "Remove Buff" : "Add Buff";
+    const controls = document.createElement("div");
+    controls.className = "buff-controls";
 
-    if (!canAfford || !meetsMin) {
-      btn.disabled = true;
-      btn.title = "Not enough SPU or requirement not met.";
+    const countInfo = document.createElement("div");
+    countInfo.className = "buff-count";
+    if (count === 0) {
+      countInfo.textContent = "Copies: 0";
+    } else {
+      countInfo.textContent = `Copies: ${count} • Total cost: ${totalCostForThisBuff} SPU • Next: ${nextCopyCost} SPU`;
     }
 
-    btn.addEventListener("click", () => {
-      if (selected) {
-        state.selectedBuffIds = state.selectedBuffIds.filter(
-          (id) => id !== buff.id
-        );
+    const stepper = document.createElement("div");
+    stepper.className = "buff-stepper";
+
+    const minusBtn = document.createElement("button");
+    minusBtn.className = "btn secondary";
+    minusBtn.textContent = "−";
+    minusBtn.disabled = count === 0;
+    minusBtn.addEventListener("click", () => {
+      const current = state.selectedBuffs[buff.id] || 0;
+      if (current <= 1) {
+        delete state.selectedBuffs[buff.id];
       } else {
-        const { availableAsp: currentAvail } = getShadowTotals();
-        if (currentAvail < buff.cost) return;
-        state.selectedBuffIds.push(buff.id);
+        state.selectedBuffs[buff.id] = current - 1;
       }
       saveState();
       renderTotals();
@@ -405,10 +480,37 @@ function renderBuffList() {
       updateSummary();
     });
 
+    const plusBtn = document.createElement("button");
+    plusBtn.className = "btn secondary";
+    plusBtn.textContent = "+";
+    plusBtn.disabled = !meetsMin || !canAffordNext;
+    plusBtn.title =
+      meetsMin && canAffordNext
+        ? ""
+        : "Not enough SPU or minimum total SPU not met.";
+    plusBtn.addEventListener("click", () => {
+      const current = state.selectedBuffs[buff.id] || 0;
+      const { availableAsp: currentAvail } = getShadowTotals();
+      const needed = getCopyCost(buff.cost, current + 1);
+      if (currentAvail < needed || !meetsMin) return;
+      state.selectedBuffs[buff.id] = current + 1;
+      saveState();
+      renderTotals();
+      renderBuffList();
+      renderSelectedBuffs();
+      updateSummary();
+    });
+
+    stepper.appendChild(minusBtn);
+    stepper.appendChild(plusBtn);
+
+    controls.appendChild(countInfo);
+    controls.appendChild(stepper);
+
     card.appendChild(header);
     card.appendChild(desc);
     card.appendChild(meta);
-    card.appendChild(btn);
+    card.appendChild(controls);
 
     listEl.appendChild(card);
   });
@@ -418,14 +520,22 @@ function renderSelectedBuffs() {
   const container = document.getElementById("selected-buffs");
   container.innerHTML = "";
 
-  if (!state.selectedBuffIds.length) {
+  const allBuffs = getAllBuffs();
+  const buffMap = Object.fromEntries(allBuffs.map((b) => [b.id, b]));
+
+  const entries = Object.entries(state.selectedBuffs).filter(
+    ([, count]) => count > 0
+  );
+  if (!entries.length) {
     container.textContent = "No buffs selected yet.";
     return;
   }
 
-  state.selectedBuffIds.forEach((buffId) => {
-    const buff = BUFFS.find((b) => b.id === buffId);
+  entries.forEach(([buffId, count]) => {
+    const buff = buffMap[buffId];
     if (!buff) return;
+
+    const totalCost = getTotalCostForBuff(buff.cost, count);
 
     const card = document.createElement("div");
     card.className = "selected-buff-card";
@@ -435,11 +545,11 @@ function renderSelectedBuffs() {
 
     const nameEl = document.createElement("div");
     nameEl.className = "selected-buff-name";
-    nameEl.textContent = buff.name;
+    nameEl.textContent = `${buff.name} ×${count}`;
 
     const metaEl = document.createElement("div");
     metaEl.className = "selected-buff-meta";
-    metaEl.textContent = `${buff.cost} SPU • ${buff.description.slice(
+    metaEl.textContent = `Total cost: ${totalCost} SPU • ${buff.description.slice(
       0,
       80
     )}${buff.description.length > 80 ? "..." : ""}`;
@@ -451,7 +561,7 @@ function renderSelectedBuffs() {
     removeBtn.className = "selected-buff-remove";
     removeBtn.textContent = "×";
     removeBtn.addEventListener("click", () => {
-      state.selectedBuffIds = state.selectedBuffIds.filter((id) => id !== buffId);
+      delete state.selectedBuffs[buffId];
       saveState();
       renderTotals();
       renderBuffList();
@@ -469,6 +579,9 @@ function updateSummary() {
   const out = document.getElementById("summary-output");
   if (!out) return;
   const { totalAsp, spentAsp, availableAsp } = getShadowTotals();
+
+  const allBuffs = getAllBuffs();
+  const buffMap = Object.fromEntries(allBuffs.map((b) => [b.id, b]));
 
   let lines = [];
 
@@ -490,18 +603,27 @@ function updateSummary() {
           s.active ? "Yes" : "No"
         }`
       );
+      if (Array.isArray(s.techniques) && s.techniques.length) {
+        lines.push("    Techniques:");
+        s.techniques.forEach((t) => lines.push(`      • ${t}`));
+      }
     });
   }
 
   lines.push("");
-  if (!state.selectedBuffIds.length) {
+  const buffEntries = Object.entries(state.selectedBuffs).filter(
+    ([, count]) => count > 0
+  );
+  if (!buffEntries.length) {
     lines.push("No buffs selected.");
   } else {
     lines.push("Active Buffs:");
-    state.selectedBuffIds.forEach((buffId) => {
-      const buff = BUFFS.find((b) => b.id === buffId);
+    buffEntries.forEach(([buffId, count]) => {
+      const buff = buffMap[buffId];
       if (buff) {
-        lines.push(`- ${buff.name} (${buff.cost} SPU): ${buff.description}`);
+        lines.push(
+          `- ${buff.name} ×${count} (base ${buff.cost} SPU): ${buff.description}`
+        );
       }
     });
   }
@@ -577,15 +699,19 @@ function generateReanimationProfile() {
   );
   lines.push("");
   lines.push(
-    `Saving Throws: STR +${Math.floor((str - 10) / 2) + 2}, CON +${
+    `Saving Throws (suggested): STR +${Math.floor((str - 10) / 2) + 2}, CON +${
       Math.floor((con - 10) / 2) + 2
     }`
   );
   lines.push("Skills: Perception +?, Intimidation +?");
-  lines.push("Damage Resistances: necrotic; bludgeoning, piercing, and slashing from non-magical attacks (optional).");
+  lines.push(
+    "Damage Resistances: necrotic; bludgeoning, piercing, and slashing from non-magical attacks (optional)."
+  );
   lines.push("Condition Immunities: charmed, frightened, poisoned (DM option).");
   lines.push("Senses: darkvision 60 ft., passive Perception ??.");
-  lines.push("Languages: understands the languages it knew in life (if any); obeys the shadow fruit user.");
+  lines.push(
+    "Languages: understands the languages it knew in life (if any); obeys the shadow fruit user."
+  );
   lines.push("");
 
   lines.push("TRAITS");
@@ -618,7 +744,7 @@ function generateReanimationProfile() {
   );
   if (totalSL >= 10) {
     lines.push(
-      `• Shadow Lash. Melee Spell Attack or special attack: +${
+      `• Shadow Lash. Melee spell-like attack: +${
         5 + Math.floor(totalSL / 3)
       } to hit, reach 10 ft., one target. Hit: 2d8 necrotic, and the target must succeed on a STR or DEX save (DC ~${10 +
         Math.floor(totalSL / 2)}) or be grappled by shadow chains.`
@@ -644,6 +770,20 @@ function generateReanimationProfile() {
   outEl.value = lines.join("\n");
 }
 
+// ---------- DC HELPER ----------
+
+function calcDC() {
+  const sl = Number(document.getElementById("dc-shadow-level").value);
+  const mod = Number(document.getElementById("dc-spell-mod").value);
+  const prof = Number(document.getElementById("dc-prof").value);
+
+  const shadowBonus = Math.floor(sl / 2); // extra weight from how strong your shadow is
+  const dc = 8 + mod + (isNaN(prof) ? 0 : prof) + shadowBonus;
+
+  const out = document.getElementById("dc-output");
+  out.textContent = `Suggested DC: ${dc}  (8 + mod ${mod} + prof ${prof || 0} + shadow bonus ${shadowBonus})`;
+}
+
 // ---------- AI INTEGRATION ----------
 
 async function callAI() {
@@ -661,7 +801,9 @@ async function callAI() {
     totalAsp,
     spentAsp,
     availableAsp,
-    selectedBuffIds: state.selectedBuffIds,
+    // keep old key for compatibility + new structured one
+    selectedBuffIds: Object.keys(state.selectedBuffs),
+    selectedBuffs: state.selectedBuffs,
     notes
   };
 
@@ -749,7 +891,8 @@ function initEvents() {
       ttLabel: payload.ttLabel,
       shadowLevel: payload.shadowLevel,
       shadowPower: payload.shadowPower,
-      active: true
+      active: true,
+      techniques: []
     });
 
     document.getElementById("shadow-name").value = "";
@@ -773,6 +916,47 @@ function initEvents() {
     .getElementById("btn-ai-generate")
     .addEventListener("click", callAI);
 
+  document.getElementById("btn-ai-reroll").addEventListener("click", callAI);
+
+  document.getElementById("btn-calc-dc").addEventListener("click", calcDC);
+
+  document.getElementById("btn-add-custom-buff").addEventListener("click", () => {
+    const name = document.getElementById("custom-buff-name").value.trim();
+    const cost = Number(
+      document.getElementById("custom-buff-cost").value || "0"
+    );
+    const minAsp = Number(
+      document.getElementById("custom-buff-minAsp").value || "0"
+    );
+    const desc = document.getElementById("custom-buff-desc").value.trim();
+
+    if (!name || isNaN(cost) || cost <= 0) {
+      alert("Custom buff needs a name and a positive base cost.");
+      return;
+    }
+
+    const id = "custom_" + Date.now().toString(36);
+    const buff = {
+      id,
+      name,
+      cost,
+      minAsp: isNaN(minAsp) ? 0 : minAsp,
+      description: desc || "Custom buff (details not specified)."
+    };
+
+    state.customBuffs.push(buff);
+
+    document.getElementById("custom-buff-name").value = "";
+    document.getElementById("custom-buff-cost").value = "10";
+    document.getElementById("custom-buff-minAsp").value = "0";
+    document.getElementById("custom-buff-desc").value = "";
+
+    saveState();
+    renderBuffList();
+    renderSelectedBuffs();
+    updateSummary();
+  });
+
   document.getElementById("btn-force-save").addEventListener("click", () => {
     saveState();
     updateSummary();
@@ -795,8 +979,8 @@ function initEvents() {
     });
 
   document.getElementById("btn-reset-all").addEventListener("click", () => {
-    if (!confirm("Reset all shadows and buffs?")) return;
-    state = { shadows: [], selectedBuffIds: [] };
+    if (!confirm("Reset all shadows, buffs, and custom buffs?")) return;
+    state = { shadows: [], selectedBuffs: {}, customBuffs: [] };
     saveState();
     renderShadowList();
     renderTotals();
@@ -809,6 +993,8 @@ function initEvents() {
     if (reOut) reOut.value = "";
     if (aiOut) aiOut.value = "";
     if (aiStatus) aiStatus.textContent = "";
+    const dcOut = document.getElementById("dc-output");
+    if (dcOut) dcOut.textContent = "";
   });
 }
 
