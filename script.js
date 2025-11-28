@@ -45,6 +45,58 @@ const TEMPLATE_TIERS = [
   "9 – Final world boss / divine monster"
 ];
 
+// Tag metadata for special powers
+const TAG_META = {
+  shadow_step_30: {
+    category: "mobility",
+    short: "Shadow Step 30 ft",
+    power:
+      "Shadow Step 30 ft: As a bonus action, teleport up to 30 ft between areas of dim light or darkness (uses/round determined by DM)."
+  },
+  shadow_step_60: {
+    category: "mobility",
+    short: "Shadow Step 60 ft",
+    power:
+      "Shadow Step 60 ft: As a bonus action, teleport up to 60 ft between shadows (uses/round determined by DM)."
+  },
+  shadow_dash: {
+    category: "mobility",
+    short: "Shadow Dash",
+    power:
+      "Shadow Dash: Once per turn, move extra distance without provoking opportunity attacks (exact distance/uses by DM)."
+  },
+  shadow_weapon: {
+    category: "other",
+    short: "Shadow Weapon",
+    power:
+      "Shadow Weapon: Conjured shadow-forged weapon counts as magical for overcoming resistance and can take any form you choose."
+  },
+  shadow_redirect: {
+    category: "other",
+    short: "Shadow Redirect",
+    power:
+      "Shadow Redirect: Use a reaction to reduce damage you or a nearby creature takes and redirect some of it to another target (DM adjudicates exact values)."
+  },
+  shadow_shackles: {
+    category: "other",
+    short: "Shadow Shackles",
+    power:
+      "Shadow Shackles: You can restrain foes with shadow chains that use your Shadow DC to escape or avoid."
+  },
+  resistance_mundane: {
+    category: "defense",
+    short: "Resist non-magical weapons",
+    power:
+      "Resistance to Non-magical Weapons: You resist bludgeoning, piercing, and slashing damage from non-magical weapon attacks."
+  },
+  custom: {
+    category: "other",
+    short: "Custom shadow effect",
+    power:
+      "Custom shadow effect: A unique shadow-based ability defined by you on the buff card."
+  }
+};
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -86,7 +138,7 @@ function qsa(sel) {
   return Array.from(document.querySelectorAll(sel));
 }
 
-// Auto-resize helper for textareas (no scrollbars inside ability cards)
+// Auto-resize helper for textareas (no inner scrollbars)
 function autoResizeTextarea(el) {
   if (!el) return;
   el.style.height = "auto";
@@ -144,7 +196,8 @@ function createDefaultBuffs() {
     name: "Resistance to Non-magical Weapons",
     category: "defense",
     baseCost: 20,
-    description: "Gain resistance to bludgeoning, piercing, and slashing from non-magical attacks. Stacks grant extra uses per day or extra targets (DM adjudicates).",
+    description:
+      "Gain resistance to bludgeoning, piercing, and slashing from non-magical attacks. Stacks grant extra uses per day or extra targets (DM adjudicates).",
     effect: { type: "other", tag: "resistance_mundane" }
   });
 
@@ -163,7 +216,8 @@ function createDefaultBuffs() {
     name: "Shadow Step (30 ft)",
     category: "mobility",
     baseCost: 18,
-    description: "As a bonus action, teleport up to 30 ft between areas of dim light or darkness. Stacks grant more uses per round or more targets.",
+    description:
+      "As a bonus action, teleport up to 30 ft between areas of dim light or darkness. Stacks grant more uses per round or more targets.",
     effect: { type: "other", tag: "shadow_step_30" }
   });
 
@@ -172,7 +226,8 @@ function createDefaultBuffs() {
     name: "Shadow Step (60 ft)",
     category: "mobility",
     baseCost: 28,
-    description: "As a bonus action, teleport up to 60 ft. Stacks increase uses or distance (DM adjudicates).",
+    description:
+      "As a bonus action, teleport up to 60 ft. Stacks increase uses or distance (DM adjudicates).",
     effect: { type: "other", tag: "shadow_step_60" }
   });
 
@@ -181,17 +236,19 @@ function createDefaultBuffs() {
     name: "Shadow Dash",
     category: "mobility",
     baseCost: 15,
-    description: "Once per turn, move an additional 10 ft without provoking opportunity attacks. Stacks improve distance or number of uses.",
+    description:
+      "Once per turn, move an additional distance without provoking opportunity attacks. Stacks improve distance or uses.",
     effect: { type: "other", tag: "shadow_dash" }
   });
 
-  // Save bonuses (+2 to STR/DEX/CON saves only; expensive)
+  // Save bonuses (+2 to STR/DEX/CON saves)
   add({
     id: "plus2_str_save",
     name: "+2 STR Save Bonus",
     category: "saves",
     baseCost: 25,
-    description: "Your muscles remember the shadows’ strength. Gain +2 to Strength saving throws per stack.",
+    description:
+      "Your muscles remember the shadows’ strength. Gain +2 to Strength saving throws per stack.",
     effect: { type: "saveBonus", ability: "STR", amountPerStack: 2 }
   });
   add({
@@ -207,7 +264,8 @@ function createDefaultBuffs() {
     name: "+2 CON Save Bonus",
     category: "saves",
     baseCost: 35,
-    description: "Shadow-fortified body. Gain +2 to Constitution saving throws per stack.",
+    description:
+      "Shadow-fortified body. Gain +2 to Constitution saving throws per stack.",
     effect: { type: "saveBonus", ability: "CON", amountPerStack: 2 }
   });
 
@@ -243,7 +301,8 @@ function createDefaultBuffs() {
     name: "Shadow Weapon",
     category: "offense",
     baseCost: 14,
-    description: "Conjure a shadow-forged weapon that counts as magical for overcoming resistance. Stacks can add riders (extra damage, reach, etc.).",
+    description:
+      "Conjure a shadow-forged weapon that counts as magical for overcoming resistance. Stacks can add riders (extra damage, reach, etc.).",
     effect: { type: "other", tag: "shadow_weapon" }
   });
 
@@ -252,7 +311,8 @@ function createDefaultBuffs() {
     name: "Shadow Redirect",
     category: "offense",
     baseCost: 20,
-    description: "When you or a creature within 5 ft would take damage, you can use your reaction to reduce it and redirect some to another target (DM adjudicates exact amount). Stacks add more uses.",
+    description:
+      "When you or a creature within 5 ft would take damage, you can use your reaction to reduce it and redirect some to another target (DM adjudicates exact values). Stacks add more uses.",
     effect: { type: "other", tag: "shadow_redirect" }
   });
 
@@ -261,14 +321,15 @@ function createDefaultBuffs() {
     name: "Shadow Shackles",
     category: "control",
     baseCost: 22,
-    description: "Gain an at-will restraining effect: shadow chains attempt to grapple and restrain foes. Stacks can boost the save DC or number of targets.",
+    description:
+      "Gain an at-will restraining effect: shadow chains attempt to grapple and restrain foes. Stacks can boost the save DC or number of targets.",
     effect: { type: "other", tag: "shadow_shackles" }
   });
 
   return buffs;
 }
 
-// exponential cost: base for first copy, then grows quickly
+// exponential cost across stacks
 function buffStackCost(base, count) {
   let total = 0;
   for (let i = 1; i <= count; i++) {
@@ -340,7 +401,7 @@ function computeShadowLevel(raw, profTier, templateTier) {
   const p = 0.4 + profWeight * profNorm;
   const t = 0.4 + templWeight * templNorm;
 
-  const overall = r * p * t; // 0.064 – 1 roughly
+  const overall = r * p * t;
   const scaled = overall * overall;
 
   const SL = Math.max(1, Math.round(overall * 10)); // 1–10
@@ -591,7 +652,7 @@ function adjustBuffStacks(buffId, delta) {
   if (next === 0) delete target.buffs[buffId];
 
   renderBuffCards();
-  updateShadowTotals(); // includes summary refresh & save
+  updateShadowTotals();
 }
 
 function renderBuffCards() {
@@ -632,7 +693,9 @@ function renderBuffCards() {
     const currentStacks = target.buffs[buff.id] || 0;
     const totalCost = buffStackCost(buff.baseCost, currentStacks);
     const nextCost =
-      currentStacks >= 0 ? nextBuffIncrementCost(buff.baseCost, currentStacks) : buff.baseCost;
+      currentStacks >= 0
+        ? nextBuffIncrementCost(buff.baseCost, currentStacks)
+        : buff.baseCost;
 
     const stackInfo = document.createElement("span");
     stackInfo.innerHTML = `Copies: <strong>${currentStacks}</strong> · SPU spent here: <strong>${totalCost}</strong><br/>
@@ -889,7 +952,7 @@ function renderCorpseCard(corpse) {
   acPill.textContent = `AC ${stats.ac}`;
   const hpPill = document.createElement("div");
   hpPill.className = "corpse-pill";
-  hpPill.textContent = `HP ~${stats.hp} (DM can convert to dice)`;
+  hpPill.textContent = `Hit Points: ~${stats.hp} (DM can convert to dice)`;
   const speedPill = document.createElement("div");
   speedPill.className = "corpse-pill";
   speedPill.textContent = `Speed ${stats.speed} ft.`;
@@ -911,7 +974,9 @@ function renderCorpseCard(corpse) {
     li.textContent = text;
     traitsList.appendChild(li);
   };
-  trait(`Corpse Durability: Tier ${stats.durability} body; very hard to destroy for its size.`);
+  trait(
+    `Corpse Durability: Tier ${stats.durability} body; very hard to destroy for its size.`
+  );
   trait(
     `Infused Shadows: Powered by ${poweringShadows.length} shadow(s); total SL ${stats.slSum}, total ${stats.spuSum} SPU. Personality and aggression are shaped by those shadows.`
   );
@@ -986,8 +1051,7 @@ function renderCorpseCard(corpse) {
     });
   } else {
     const li = document.createElement("li");
-    li.textContent =
-      "No specific techniques recorded on powering shadows yet.";
+    li.textContent = "No specific techniques recorded on powering shadows yet.";
     inhList.appendChild(li);
   }
   inheritSec.appendChild(inhList);
@@ -1169,7 +1233,8 @@ function renderAbilityCards() {
     const comboField = document.createElement("div");
     comboField.className = "field ability-main-text";
     const cLabel = document.createElement("label");
-    cLabel.textContent = "Optional: how this interacts with other powers / combo logic.";
+    cLabel.textContent =
+      "Optional: how this interacts with other powers / combo logic.";
     const cTa = document.createElement("textarea");
     cTa.rows = 2;
     cTa.value = ab.combo || "";
@@ -1323,7 +1388,9 @@ function computeBuffTotalsForTarget(target) {
     ac: 0,
     acDark: 0,
     saves: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 },
-    other: []
+    advSaves: {}, // ability -> true
+    advChecks: {}, // ability -> true
+    tags: {} // tag -> {count, def}
   };
 
   const buffs = target.buffs || {};
@@ -1331,13 +1398,27 @@ function computeBuffTotalsForTarget(target) {
     const def = state.buffsCatalog[buffId];
     if (!def) return;
     const eff = def.effect;
-    if (eff.type === "tempHP") totals.tempHP += eff.amount * count;
-    else if (eff.type === "speed") totals.speed += eff.amount * count;
-    else if (eff.type === "ac") totals.ac += eff.amount * count;
-    else if (eff.type === "acDark") totals.acDark += eff.amount * count;
-    else if (eff.type === "saveBonus")
+
+    if (eff.type === "tempHP") {
+      totals.tempHP += eff.amount * count;
+    } else if (eff.type === "speed") {
+      totals.speed += eff.amount * count;
+    } else if (eff.type === "ac") {
+      totals.ac += eff.amount * count;
+    } else if (eff.type === "acDark") {
+      totals.acDark += eff.amount * count;
+    } else if (eff.type === "saveBonus") {
       totals.saves[eff.ability] += eff.amountPerStack * count;
-    else totals.other.push({ buff: def, count });
+    } else if (eff.type === "advSave") {
+      totals.advSaves[eff.ability] = true;
+    } else if (eff.type === "advCheck") {
+      totals.advChecks[eff.ability] = true;
+    } else if (eff.type === "other" && eff.tag) {
+      if (!totals.tags[eff.tag]) {
+        totals.tags[eff.tag] = { count: 0, def };
+      }
+      totals.tags[eff.tag].count += count;
+    }
   });
 
   return totals;
@@ -1354,7 +1435,7 @@ function renderSummary() {
     return;
   }
 
-  const totals = computeSPUTotals();
+  const globalTotals = computeSPUTotals();
 
   targets.forEach((target) => {
     const card = document.createElement("div");
@@ -1381,11 +1462,12 @@ function renderSummary() {
 
     const buffTotals = computeBuffTotalsForTarget(target);
 
-    const corp = target.type === "corpse"
-      ? state.corpses.find((c) => c.id === target.id)
-      : null;
+    const corp =
+      target.type === "corpse"
+        ? state.corpses.find((c) => c.id === target.id)
+        : null;
 
-    // AC pill
+    // AC
     const acPill = document.createElement("div");
     acPill.className = "summary-pill";
     if (corp && corp.stats) {
@@ -1402,7 +1484,7 @@ function renderSummary() {
       else acPill.textContent = "AC: use character sheet";
     }
 
-    // HP pill
+    // HP
     const hpPill = document.createElement("div");
     hpPill.className = "summary-pill";
     if (corp && corp.stats) {
@@ -1415,12 +1497,14 @@ function renderSummary() {
       else hpPill.textContent = "HP: use character sheet";
     }
 
-    // Speed pill
+    // Speed
     const speedPill = document.createElement("div");
     speedPill.className = "summary-pill";
     if (corp && corp.stats) {
       if (buffTotals.speed) {
-        speedPill.textContent = `Speed ${corp.stats.speed + buffTotals.speed} ft (base ${corp.stats.speed} +${buffTotals.speed})`;
+        speedPill.textContent = `Speed ${
+          corp.stats.speed + buffTotals.speed
+        } ft (base ${corp.stats.speed} +${buffTotals.speed})`;
       } else speedPill.textContent = `Speed ${corp.stats.speed} ft`;
     } else {
       if (buffTotals.speed)
@@ -1428,16 +1512,16 @@ function renderSummary() {
       else speedPill.textContent = "Speed: use character sheet";
     }
 
-    // Shadow pool pill
+    // Shadow power & DC
     let targetShadowSpu = 0;
     if (target.type === "corpse" && corp) {
       targetShadowSpu = corp.stats.spuSum;
     } else {
-      targetShadowSpu = totals.total;
+      targetShadowSpu = globalTotals.total;
     }
     const spuPill = document.createElement("div");
     spuPill.className = "summary-pill";
-    spuPill.textContent = `Relevant Shadow Power: ${targetShadowSpu} SPU`;
+    spuPill.textContent = `Shadow Power: ${targetShadowSpu} SPU`;
 
     const dcPill = document.createElement("div");
     dcPill.className = "summary-pill";
@@ -1453,90 +1537,131 @@ function renderSummary() {
     pillRow.appendChild(spuPill);
     pillRow.appendChild(dcPill);
 
-    // Shadow Buffs section
-    const buffsTitle = document.createElement("div");
-    buffsTitle.className = "summary-section-title";
-    buffsTitle.textContent = "Shadow Buffs";
+    // ----- AT A GLANCE -----
+    const glanceTitle = document.createElement("div");
+    glanceTitle.className = "summary-section-title";
+    glanceTitle.textContent = "At a Glance";
 
-    const buffsSummary = document.createElement("div");
+    const glanceBox = document.createElement("div");
+    glanceBox.className = "summary-at-a-glance";
 
-    // numeric totals (first line)
-    const numericPieces = [];
-    if (buffTotals.tempHP) numericPieces.push(`+${buffTotals.tempHP} temp HP`);
-    if (buffTotals.speed) numericPieces.push(`+${buffTotals.speed} ft speed`);
+    const defPieces = [];
+    if (buffTotals.tempHP) defPieces.push(`+${buffTotals.tempHP} temp HP`);
+    if (buffTotals.ac) defPieces.push(`+${buffTotals.ac} AC`);
+    if (buffTotals.acDark)
+      defPieces.push(`+${buffTotals.acDark} AC in dim light/darkness`);
+
+    const mobPieces = [];
+    if (buffTotals.speed) mobPieces.push(`+${buffTotals.speed} ft speed`);
+
     const savePieces = [];
     Object.entries(buffTotals.saves).forEach(([ab, val]) => {
       if (val) savePieces.push(`+${val} ${ab} saves`);
     });
-    if (savePieces.length) numericPieces.push(savePieces.join(", "));
-    if (buffTotals.ac) numericPieces.push(`+${buffTotals.ac} AC`);
-    if (buffTotals.acDark)
-      numericPieces.push(`+${buffTotals.acDark} AC in dim light/darkness`);
 
-    // compact buff name list (second line)
-    const namePieces = [];
-    const targetBuffs = target.buffs || {};
-    Object.entries(targetBuffs).forEach(([buffId, count]) => {
-      const def = state.buffsCatalog[buffId];
-      if (!def) return;
-      namePieces.push(`${def.name} ×${count}`);
+    const advSaveAbilities = Object.keys(buffTotals.advSaves);
+    const advCheckAbilities = Object.keys(buffTotals.advChecks);
+
+    const otherPieces = [];
+
+    // Tag-based powers (Shadow Step, Weapon, etc.)
+    const mobilityNames = new Set();
+    const defenseNames = new Set();
+    const otherNames = new Set();
+
+    Object.entries(buffTotals.tags).forEach(([tagId, info]) => {
+      const meta = TAG_META[tagId];
+      if (!meta) return;
+      if (meta.category === "mobility") mobilityNames.add(meta.short);
+      else if (meta.category === "defense") defenseNames.add(meta.short);
+      else otherNames.add(meta.short);
     });
 
-    if (!numericPieces.length && !namePieces.length) {
-      buffsSummary.textContent = "No buffs yet.";
-    } else {
-      const parts = [];
-      if (numericPieces.length) {
-        parts.push(numericPieces.join("; "));
-      }
-      if (namePieces.length) {
-        parts.push(`Buffs: ${namePieces.join("; ")}`);
-      }
-      buffsSummary.innerHTML = parts.join("<br/>");
+    mobilityNames.forEach((name) => mobPieces.push(name));
+    defenseNames.forEach((name) => defPieces.push(name));
+    otherNames.forEach((name) => otherPieces.push(name));
+
+    // Shadow Armor of Night: show name if present
+    const targetBuffs = target.buffs || {};
+    if (targetBuffs["shadowArmorNight"] && buffTotals.acDark) {
+      otherPieces.push("Shadow Armor of Night");
     }
 
-    // detailed breakdown
-    const details = document.createElement("details");
-    details.className = "summary-details";
-    const summaryEl = document.createElement("summary");
-    summaryEl.textContent = "Show buff breakdown";
-    details.appendChild(summaryEl);
+    if (advSaveAbilities.length) {
+      const list = advSaveAbilities.join(", ");
+      savePieces.push(`Advantage on ${list} saves`);
+    }
+    if (advCheckAbilities.length) {
+      const list = advCheckAbilities.join(", ");
+      savePieces.push(`Advantage on ${list} checks`);
+    }
 
-    const list = document.createElement("ul");
-    list.className = "summary-list";
+    const lines = [];
 
-    Object.entries(targetBuffs).forEach(([buffId, count]) => {
-      const def = state.buffsCatalog[buffId];
-      if (!def) return;
-      const li = document.createElement("li");
-      let effectText = "";
-      const eff = def.effect;
-      if (eff.type === "tempHP")
-        effectText = `Total +${eff.amount * count} temp HP.`;
-      else if (eff.type === "speed")
-        effectText = `Total +${eff.amount * count} ft speed.`;
-      else if (eff.type === "ac")
-        effectText = `Total +${eff.amount * count} AC.`;
-      else if (eff.type === "acDark")
-        effectText = `Total +${eff.amount * count} AC in darkness.`;
-      else if (eff.type === "saveBonus")
-        effectText = `Total +${eff.amountPerStack * count} to ${
-          eff.ability
-        } saves.`;
-      else if (eff.type === "advSave")
-        effectText = `Advantage on ${eff.ability} saves.`;
-      else if (eff.type === "advCheck")
-        effectText = `Advantage on ${eff.ability} ability checks.`;
-      else effectText = "";
+    if (defPieces.length) {
+      lines.push(
+        `<div><strong>Defenses:</strong> ${defPieces.join("; ")}</div>`
+      );
+    }
+    if (mobPieces.length) {
+      lines.push(
+        `<div><strong>Mobility:</strong> ${mobPieces.join("; ")}</div>`
+      );
+    }
+    if (savePieces.length) {
+      lines.push(
+        `<div><strong>Saves & Checks:</strong> ${savePieces.join("; ")}</div>`
+      );
+    }
+    if (otherPieces.length) {
+      lines.push(
+        `<div><strong>Other:</strong> ${otherPieces.join("; ")}</div>`
+      );
+    }
 
-      const totalCost = buffStackCost(def.baseCost, count);
-      li.textContent = `${def.name} ×${count} — SPU spent: ${totalCost}. ${effectText}`;
-      list.appendChild(li);
+    if (!lines.length) {
+      glanceBox.textContent = "No buffs yet.";
+    } else {
+      glanceBox.innerHTML = lines.join("");
+    }
+
+    // ----- POWERS FROM BUFFS -----
+    const powersTitle = document.createElement("div");
+    powersTitle.className = "summary-section-title";
+    powersTitle.textContent = "Powers from Buffs";
+
+    const powersList = document.createElement("ul");
+    powersList.className = "summary-list";
+
+    const powerLines = [];
+
+    Object.entries(buffTotals.tags).forEach(([tagId, info]) => {
+      const meta = TAG_META[tagId];
+      if (meta && meta.power) {
+        powerLines.push(meta.power);
+      }
     });
 
-    details.appendChild(list);
+    // Special case: Shadow Armor of Night power text
+    if (targetBuffs["shadowArmorNight"] && buffTotals.acDark) {
+      powerLines.push(
+        "Shadow Armor of Night: While in dim light or darkness, your AC increases by the amount shown above."
+      );
+    }
 
-    // Abilities section
+    if (!powerLines.length) {
+      const li = document.createElement("li");
+      li.textContent = "No special powers from buffs beyond numeric bonuses.";
+      powersList.appendChild(li);
+    } else {
+      powerLines.forEach((text) => {
+        const li = document.createElement("li");
+        li.textContent = text;
+        powersList.appendChild(li);
+      });
+    }
+
+    // ----- ABILITIES & TECHNIQUES -----
     const abilitiesTitle = document.createElement("div");
     abilitiesTitle.className = "summary-section-title";
     abilitiesTitle.textContent = "Abilities & Techniques";
@@ -1563,7 +1688,7 @@ function renderSummary() {
       });
     }
 
-    // Inherited techniques (corpses only)
+    // ----- INHERITED TECHNIQUES (CORPSES) -----
     let inheritTitle, inheritList;
     if (corp) {
       inheritTitle = document.createElement("div");
@@ -1585,6 +1710,47 @@ function renderSummary() {
       }
     }
 
+    // ----- BUFF BREAKDOWN (COLLAPSIBLE) -----
+    const breakdownDetails = document.createElement("details");
+    breakdownDetails.className = "summary-details";
+    const summaryEl = document.createElement("summary");
+    summaryEl.textContent = "Show buff breakdown (stacks & SPU)";
+    breakdownDetails.appendChild(summaryEl);
+
+    const breakdownList = document.createElement("ul");
+    breakdownList.className = "summary-list";
+
+    Object.entries(targetBuffs).forEach(([buffId, count]) => {
+      const def = state.buffsCatalog[buffId];
+      if (!def) return;
+      const li = document.createElement("li");
+      const eff = def.effect;
+      let effectText = "";
+      if (eff.type === "tempHP")
+        effectText = `Total +${eff.amount * count} temp HP.`;
+      else if (eff.type === "speed")
+        effectText = `Total +${eff.amount * count} ft speed.`;
+      else if (eff.type === "ac")
+        effectText = `Total +${eff.amount * count} AC.`;
+      else if (eff.type === "acDark")
+        effectText = `Total +${eff.amount * count} AC in darkness.`;
+      else if (eff.type === "saveBonus")
+        effectText = `Total +${eff.amountPerStack * count} to ${
+          eff.ability
+        } saves.`;
+      else if (eff.type === "advSave")
+        effectText = `Advantage on ${eff.ability} saves.`;
+      else if (eff.type === "advCheck")
+        effectText = `Advantage on ${eff.ability} checks.`;
+
+      const totalCost = buffStackCost(def.baseCost, count);
+      li.textContent = `${def.name} ×${count} — SPU spent: ${totalCost}. ${effectText}`;
+      breakdownList.appendChild(li);
+    });
+
+    breakdownDetails.appendChild(breakdownList);
+
+    // ----- NOTES / RULINGS -----
     const notesTitle = document.createElement("div");
     notesTitle.className = "summary-section-title";
     notesTitle.textContent = "Notes / Rulings";
@@ -1600,17 +1766,20 @@ function renderSummary() {
       saveState();
     });
 
+    // assemble card
     card.appendChild(header);
     card.appendChild(pillRow);
-    card.appendChild(buffsTitle);
-    card.appendChild(buffsSummary);
-    card.appendChild(details);
+    card.appendChild(glanceTitle);
+    card.appendChild(glanceBox);
+    card.appendChild(powersTitle);
+    card.appendChild(powersList);
     card.appendChild(abilitiesTitle);
     card.appendChild(abilitiesList);
     if (corp) {
       card.appendChild(inheritTitle);
       card.appendChild(inheritList);
     }
+    card.appendChild(breakdownDetails);
     card.appendChild(notesTitle);
     card.appendChild(notesBox);
 
