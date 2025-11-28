@@ -19,6 +19,32 @@ let state = {
 
 // ---------- UTIL ----------
 
+const PROF_TIERS = [
+  "0 – Untrained (civilian, fodder)",
+  "1 – Basic training (rookie fighter)",
+  "2 – Seasoned fighter",
+  "3 – Veteran specialist",
+  "4 – Elite commander",
+  "5 – Master combatant",
+  "6 – Legendary master",
+  "7 – Mythic prodigy",
+  "8 – World-class monster",
+  "9 – Beyond mortal limits"
+];
+
+const TEMPLATE_TIERS = [
+  "0 – Ordinary human (no training)",
+  "1 – Trained fighter (martial)",
+  "2 – Trained fighter (elite)",
+  "3 – Advanced fighter with basic Haki",
+  "4 – Advanced fighter with strong Haki / unique style",
+  "5 – Devil Fruit user (standard)",
+  "6 – Advanced fighter + Devil Fruit user",
+  "7 – Mythical Devil Fruit user",
+  "8 – Big Boss (Emperor-tier threat)",
+  "9 – Final world boss / divine monster"
+];
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -50,6 +76,21 @@ function nextId(kind) {
   const id = `${kind}-${state.ui.nextIds[kind] || 1}`;
   state.ui.nextIds[kind] = (state.ui.nextIds[kind] || 1) + 1;
   return id;
+}
+
+function qs(sel) {
+  return document.querySelector(sel);
+}
+
+function qsa(sel) {
+  return Array.from(document.querySelectorAll(sel));
+}
+
+// Auto-resize helper for textareas (no scrollbars inside ability cards)
+function autoResizeTextarea(el) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
 }
 
 // ---------- BUFFS CATALOG ----------
@@ -183,7 +224,7 @@ function createDefaultBuffs() {
     });
   });
 
-  // Advantage on ability checks (all six abilities, same base cost as saves)
+  // Advantage on ability checks (same cost as saves)
   const checkAbilities = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
   checkAbilities.forEach((ab) => {
     add({
@@ -260,49 +301,12 @@ function ensureBaseState() {
     state.buffTargets[selfTarget.id] = selfTarget;
     state.ui.currentBuffTargetId = "self";
   } else if (!state.buffTargets[state.ui.currentBuffTargetId]) {
-    // pick any
     const first = Object.values(state.buffTargets)[0];
     state.ui.currentBuffTargetId = first.id;
   }
 }
 
-// ---------- DOM HELPERS ----------
-
-function qs(sel) {
-  return document.querySelector(sel);
-}
-
-function qsa(sel) {
-  return Array.from(document.querySelectorAll(sel));
-}
-
 // ---------- PANEL 1: SHADOW CALC ----------
-
-const PROF_TIERS = [
-  "0 – Untrained (civilian, fodder)",
-  "1 – Basic training (rookie fighter)",
-  "2 – Seasoned fighter",
-  "3 – Veteran specialist",
-  "4 – Elite commander",
-  "5 – Master combatant",
-  "6 – Legendary master",
-  "7 – Mythic prodigy",
-  "8 – World-class monster",
-  "9 – Beyond mortal limits"
-];
-
-const TEMPLATE_TIERS = [
-  "0 – Ordinary human (no training)",
-  "1 – Trained fighter (martial)",
-  "2 – Trained fighter (elite)",
-  "3 – Advanced fighter with basic Haki",
-  "4 – Advanced fighter with strong Haki / unique style",
-  "5 – Devil Fruit user (standard)",
-  "6 – Advanced fighter + Devil Fruit user",
-  "7 – Mythical Devil Fruit user",
-  "8 – Big Boss (Emperor-tier threat)",
-  "9 – Final world boss / divine monster"
-];
 
 function populateShadowSelects() {
   const profSel = qs("#shadow-prof");
@@ -462,7 +466,6 @@ function renderShadows() {
     removeBtn.textContent = "Remove";
     removeBtn.addEventListener("click", () => {
       state.shadows = state.shadows.filter((s) => s.id !== sh.id);
-      // also remove from corpuses' shadowIds
       state.corpses.forEach((c) => {
         c.shadowIds = c.shadowIds.filter((id) => id !== sh.id);
       });
@@ -779,7 +782,6 @@ function buildCorpseStats(name, durability, poweringShadows) {
   const hp = durability * 10 + Math.round(spuSum / 8);
   const speed = 30 + Math.floor(slSum / 2);
 
-  // ability scores as rough function of durability + SL
   const STR = 10 + durability + Math.floor(slSum / 4);
   const DEX = 8 + Math.floor(slSum / 3);
   const CON = 10 + durability + Math.floor(slSum / 5);
@@ -830,7 +832,6 @@ function upsertCorpseRecord(name, stats, shadowIds, inheritedTechniques) {
     };
     state.corpses.push(corpse);
 
-    // also create buff target
     state.buffTargets[corpse.id] = {
       id: corpse.id,
       type: "corpse",
@@ -844,7 +845,6 @@ function upsertCorpseRecord(name, stats, shadowIds, inheritedTechniques) {
     corpse.stats = stats;
     corpse.inheritedTechniques = inheritedTechniques;
 
-    // ensure buff target exists
     if (!state.buffTargets[corpse.id]) {
       state.buffTargets[corpse.id] = {
         id: corpse.id,
@@ -861,7 +861,6 @@ function upsertCorpseRecord(name, stats, shadowIds, inheritedTechniques) {
 function renderCorpseCard(corpse) {
   const container = qs("#corpse-stat-block");
   container.innerHTML = "";
-
   if (!corpse) return;
 
   const stats = corpse.stats;
@@ -903,87 +902,77 @@ function renderCorpseCard(corpse) {
   pillRow.appendChild(speedPill);
   pillRow.appendChild(abilityPill);
 
-  // Traits section
   const traitsSec = document.createElement("div");
   traitsSec.className = "corpse-section";
   traitsSec.innerHTML = `<h4>Traits</h4>`;
   const traitsList = document.createElement("ul");
-
-  const item = (text) => {
+  const trait = (text) => {
     const li = document.createElement("li");
     li.textContent = text;
     traitsList.appendChild(li);
   };
-
-  item(`Corpse Durability: Tier ${stats.durability} body; very hard to destroy for its size.`);
-  item(
+  trait(`Corpse Durability: Tier ${stats.durability} body; very hard to destroy for its size.`);
+  trait(
     `Infused Shadows: Powered by ${poweringShadows.length} shadow(s); total SL ${stats.slSum}, total ${stats.spuSum} SPU. Personality and aggression are shaped by those shadows.`
   );
-  item(
+  trait(
     "Shadow Instincts: Gains advantage on one type of save (STR, DEX, or CON) chosen when created."
   );
-  item(
+  trait(
     "Shadow Resilience (DM option): Once per long rest, when reduced to 0 HP, it instead drops to 1 HP."
   );
-  item(
+  trait(
     "Damage Resistances (DM option): Necrotic; bludgeoning, piercing, and slashing from non-magical attacks."
   );
-  item("Condition Immunities (DM option): Charmed, frightened, poisoned.");
-  item(
+  trait("Condition Immunities (DM option): Charmed, frightened, poisoned.");
+  trait(
     "Senses: Darkvision 60 ft., passive Perception ??. Languages: understands any languages it knew in life (if any)."
   );
-  item("Loyalty: Obeys the shadow fruit user’s commands to the best of its ability.");
-
+  trait("Loyalty: Obeys the shadow fruit user’s commands to the best of its ability.");
   traitsSec.appendChild(traitsList);
 
-  // Actions section
   const actionsSec = document.createElement("div");
   actionsSec.className = "corpse-section";
   actionsSec.innerHTML = `<h4>Actions</h4>`;
   const actionsList = document.createElement("ul");
-
   const multi = document.createElement("li");
   multi.textContent =
     "Multiattack: The reanimated corpse makes two attacks: one Slam and one Shadow Lash (or two Slams, DM’s choice).";
-  actionsList.appendChild(multi);
-
   const slam = document.createElement("li");
   slam.textContent = `Slam: Melee Weapon Attack: +${Math.floor(
     (stats.STR - 10) / 2
   ) + 5} to hit, reach 5 ft., one target. Hit: 1d10 + ${
     Math.floor((stats.STR - 10) / 2) + 5
   } bludgeoning damage.`;
-  actionsList.appendChild(slam);
-
   const lashDc = state.ui.lastDC || 15;
   const lash = document.createElement("li");
   lash.textContent = `Shadow Lash: Melee spell-like attack: +${
     5 + Math.floor(stats.slSum / 4)
   } to hit, reach 10 ft., one target. Hit: 2d8 necrotic damage, and the target must succeed on a STR or DEX save (DC ${lashDc}) or be grappled and restrained by writhing shadow chains.`;
+  actionsList.appendChild(multi);
+  actionsList.appendChild(slam);
   actionsList.appendChild(lash);
-
   actionsSec.appendChild(actionsList);
 
-  // Infused shadows section
   const infusedSec = document.createElement("div");
   infusedSec.className = "corpse-section";
   infusedSec.innerHTML = `<h4>Infused Shadows</h4>`;
   const infusedList = document.createElement("ul");
-  poweringShadows.forEach((sh) => {
-    const li = document.createElement("li");
-    li.textContent = `${sh.name} – SL ${sh.sl}, ${sh.spu} SPU, Template: ${
-      TEMPLATE_TIERS[sh.templateTier]
-    }`;
-    infusedList.appendChild(li);
-  });
-  if (!poweringShadows.length) {
+  if (poweringShadows.length) {
+    poweringShadows.forEach((sh) => {
+      const li = document.createElement("li");
+      li.textContent = `${sh.name} – SL ${sh.sl}, ${sh.spu} SPU, Template: ${
+        TEMPLATE_TIERS[sh.templateTier]
+      }`;
+      infusedList.appendChild(li);
+    });
+  } else {
     const li = document.createElement("li");
     li.textContent = "No shadows currently powering this corpse.";
     infusedList.appendChild(li);
   }
   infusedSec.appendChild(infusedList);
 
-  // Inherited techniques section
   const inherited = gatherInheritedTechniques(poweringShadows);
   const inheritSec = document.createElement("div");
   inheritSec.className = "corpse-section";
@@ -1058,7 +1047,6 @@ function handleEditBuffsForCorpse() {
   renderSelectedBuffsSummary();
   renderSummary();
   saveState();
-  // scroll to panel 3
   const panel3 = document.querySelector('[data-panel="3"]');
   if (panel3) panel3.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1125,8 +1113,10 @@ function renderAbilityCards() {
     const dTa = document.createElement("textarea");
     dTa.rows = 3;
     dTa.value = ab.description || "";
+    autoResizeTextarea(dTa);
     dTa.addEventListener("input", () => {
       ab.description = dTa.value;
+      autoResizeTextarea(dTa);
       saveState();
     });
     descField.appendChild(dLabel);
@@ -1167,8 +1157,10 @@ function renderAbilityCards() {
     const mTa = document.createElement("textarea");
     mTa.rows = 3;
     mTa.value = ab.mechanical || "";
+    autoResizeTextarea(mTa);
     mTa.addEventListener("input", () => {
       ab.mechanical = mTa.value;
+      autoResizeTextarea(mTa);
       saveState();
     });
     mechField.appendChild(mLabel);
@@ -1181,8 +1173,10 @@ function renderAbilityCards() {
     const cTa = document.createElement("textarea");
     cTa.rows = 2;
     cTa.value = ab.combo || "";
+    autoResizeTextarea(cTa);
     cTa.addEventListener("input", () => {
       ab.combo = cTa.value;
+      autoResizeTextarea(cTa);
       saveState();
     });
     comboField.appendChild(cLabel);
@@ -1205,11 +1199,11 @@ function renderAbilityCards() {
     rerollBtn.className = "btn-secondary small-btn";
     rerollBtn.textContent = "Reroll";
     rerollBtn.addEventListener("click", () => {
-      // Simple stub "reroll" – tweak description slightly
       ab.description =
         ab.description ||
         "Shadow power surges, causing a fresh variation of the attack. Describe how the shadows change form.";
       dTa.value = ab.description;
+      autoResizeTextarea(dTa);
       saveState();
     });
     left.appendChild(copyBtn);
@@ -1264,7 +1258,6 @@ function addEmptyAbilityCard() {
 }
 
 function generateAbilitiesStub() {
-  // Stub, you can replace with actual API call later
   const dc = state.ui.lastDC || 17;
   state.abilities = [
     {
@@ -1440,7 +1433,6 @@ function renderSummary() {
     if (target.type === "corpse" && corp) {
       targetShadowSpu = corp.stats.spuSum;
     } else {
-      // use total active as generic
       targetShadowSpu = totals.total;
     }
     const spuPill = document.createElement("div");
@@ -1461,33 +1453,49 @@ function renderSummary() {
     pillRow.appendChild(spuPill);
     pillRow.appendChild(dcPill);
 
-    // Buffs summary
+    // Shadow Buffs section
     const buffsTitle = document.createElement("div");
     buffsTitle.className = "summary-section-title";
     buffsTitle.textContent = "Shadow Buffs";
 
     const buffsSummary = document.createElement("div");
-    const pieces = [];
-    if (buffTotals.tempHP) pieces.push(`+${buffTotals.tempHP} temp HP`);
-    if (buffTotals.speed) pieces.push(`+${buffTotals.speed} ft speed`);
+
+    // numeric totals (first line)
+    const numericPieces = [];
+    if (buffTotals.tempHP) numericPieces.push(`+${buffTotals.tempHP} temp HP`);
+    if (buffTotals.speed) numericPieces.push(`+${buffTotals.speed} ft speed`);
     const savePieces = [];
     Object.entries(buffTotals.saves).forEach(([ab, val]) => {
       if (val) savePieces.push(`+${val} ${ab} saves`);
     });
-    if (savePieces.length) pieces.push(savePieces.join(", "));
-    if (buffTotals.ac) pieces.push(`+${buffTotals.ac} AC`);
+    if (savePieces.length) numericPieces.push(savePieces.join(", "));
+    if (buffTotals.ac) numericPieces.push(`+${buffTotals.ac} AC`);
     if (buffTotals.acDark)
-      pieces.push(`+${buffTotals.acDark} AC in dim light/darkness`);
-    const otherCount = buffTotals.other.length;
-    if (otherCount) pieces.push(`${otherCount} other shadow buff(s)`);
+      numericPieces.push(`+${buffTotals.acDark} AC in dim light/darkness`);
 
-    if (!pieces.length) {
-      buffsSummary.textContent = "No numeric buffs yet.";
+    // compact buff name list (second line)
+    const namePieces = [];
+    const targetBuffs = target.buffs || {};
+    Object.entries(targetBuffs).forEach(([buffId, count]) => {
+      const def = state.buffsCatalog[buffId];
+      if (!def) return;
+      namePieces.push(`${def.name} ×${count}`);
+    });
+
+    if (!numericPieces.length && !namePieces.length) {
+      buffsSummary.textContent = "No buffs yet.";
     } else {
-      buffsSummary.textContent = pieces.join("; ");
+      const parts = [];
+      if (numericPieces.length) {
+        parts.push(numericPieces.join("; "));
+      }
+      if (namePieces.length) {
+        parts.push(`Buffs: ${namePieces.join("; ")}`);
+      }
+      buffsSummary.innerHTML = parts.join("<br/>");
     }
 
-    // optional detailed breakdown
+    // detailed breakdown
     const details = document.createElement("details");
     details.className = "summary-details";
     const summaryEl = document.createElement("summary");
@@ -1497,7 +1505,6 @@ function renderSummary() {
     const list = document.createElement("ul");
     list.className = "summary-list";
 
-    const targetBuffs = target.buffs || {};
     Object.entries(targetBuffs).forEach(([buffId, count]) => {
       const def = state.buffsCatalog[buffId];
       if (!def) return;
@@ -1578,7 +1585,6 @@ function renderSummary() {
       }
     }
 
-    // Notes
     const notesTitle = document.createElement("div");
     notesTitle.className = "summary-section-title";
     notesTitle.textContent = "Notes / Rulings";
@@ -1656,7 +1662,6 @@ document.addEventListener("DOMContentLoaded", () => {
   ensureBaseState();
   populateShadowSelects();
 
-  // attach listeners
   qs("#btn-calc-shadow").addEventListener("click", handleCalcShadow);
   qs("#btn-add-shadow").addEventListener("click", handleAddShadow);
 
@@ -1703,12 +1708,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initCollapsible();
 
-  // initial renders
   renderShadows();
   renderBuffTargetSelect();
   renderBuffCards();
   renderSelectedBuffsSummary();
   renderCorpseShadowSelect();
   renderAbilityCards();
-  updateShadowTotals(); // includes summary
+  updateShadowTotals();
 });
