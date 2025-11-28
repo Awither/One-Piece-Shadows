@@ -1,1433 +1,1714 @@
-// ---------- Constants & initial data ----------
-
-const PROFICIENCY_TIERS = [
-  { id: 0, label: "0 – Untrained (civilian, fodder)" },
-  { id: 1, label: "1 – Basic training" },
-  { id: 2, label: "2 – Guard / town watch" },
-  { id: 3, label: "3 – Veteran soldier" },
-  { id: 4, label: "4 – Elite fighter" },
-  { id: 5, label: "5 – Squad leader" },
-  { id: 6, label: "6 – Commander / elite captain" },
-  { id: 7, label: "7 – Warlord-level fighter" },
-  { id: 8, label: "8 – Top commander of an emperor" },
-  { id: 9, label: "9 – Legendary master" }
-];
-
-const TEMPLATE_TIERS = [
-  { id: 0, label: "0 – Ordinary Human" },
-  { id: 1, label: "1 – Trained Fighter" },
-  { id: 2, label: "2 – Devil Fruit User" },
-  { id: 3, label: "3 – Advanced Fighter (basic Haki)" },
-  { id: 4, label: "4 – Advanced Fighter + Devil Fruit" },
-  { id: 5, label: "5 – Mythical Devil Fruit User" },
-  { id: 6, label: "6 – Big Boss" },
-  { id: 7, label: "7 – Final World Boss" }
-];
-
-// Buff templates with simple metadata for totals
-const DEFAULT_BUFFS = [
-  {
-    id: "temp_hp_20",
-    name: "+20 Temp HP",
-    baseCost: 10,
-    description: "Gain +20 temporary HP per stack.",
-    effect: { type: "tempHP", perStack: 20 }
-  },
-  {
-    id: "temp_hp_50",
-    name: "+50 Temp HP",
-    baseCost: 20,
-    description: "Gain +50 temporary HP per stack.",
-    effect: { type: "tempHP", perStack: 50 }
-  },
-  {
-    id: "speed_10",
-    name: "+10 ft Movement",
-    baseCost: 7,
-    description: "Increase your speed by +10 ft per stack.",
-    effect: { type: "speed", perStack: 10 }
-  },
-  {
-    id: "str_save",
-    name: "+2 STR Save Bonus",
-    baseCost: 12,
-    description: "+2 bonus to Strength saving throws per stack.",
-    effect: { type: "save", stat: "STR", perStack: 2 }
-  },
-  {
-    id: "dex_save",
-    name: "+2 DEX Save Bonus",
-    baseCost: 12,
-    description: "+2 bonus to Dexterity saving throws per stack.",
-    effect: { type: "save", stat: "DEX", perStack: 2 }
-  },
-  {
-    id: "con_save",
-    name: "+2 CON Save Bonus",
-    baseCost: 12,
-    description: "+2 bonus to Constitution saving throws per stack.",
-    effect: { type: "save", stat: "CON", perStack: 2 }
-  },
-  {
-    id: "shadow_guard",
-    name: "Shadow Guard (AC in Darkness)",
-    baseCost: 15,
-    description: "While in dim light or darkness, gain +1 AC per stack.",
-    effect: { type: "ac_dark", perStack: 1 }
-  },
-  {
-    id: "shadow_dash",
-    name: "Shadow Dash",
-    baseCost: 10,
-    description: "Once per turn, you can move an additional 10 ft as part of your movement per stack.",
-    effect: { type: "dash", perStack: 10 }
-  },
-  {
-    id: "shadow_redirect",
-    name: "Shadow Redirect",
-    baseCost: 15,
-    description: "Once per round, reduce damage from a hit by 1d8 + SL; more stacks add more uses per round.",
-    effect: { type: "custom", perStack: 1 }
-  },
-  {
-    id: "shadow_weapon",
-    name: "Shadow Weapon",
-    baseCost: 14,
-    description: "Conjure a magical shadow weapon. Treat as your best martial weapon; DM decides damage.",
-    effect: { type: "weapon", perStack: 1 }
-  }
-];
+// ---------- STATE ----------
 
 const STORAGE_KEY = "shadowFruitSystem_v2";
 
-// ---------- Global state ----------
-
 let state = {
-  shadows: [], // {id,name,raw,profTier,templateTier,sl,spu,active,techniquesText}
-  corpses: [], // {id,name,durability,shadowIds,slSum,spuSum,stats}
-  buffs: {}, // buffTemplates by id (includes custom)
-  buffTargets: {}, // {targetId: {id,name,type, buffs: {buffId:count}}}
-  abilities: [], // ability cards
+  shadows: [], // {id, name, raw, profTier, templateTier, sl, spu, active, techniquesText}
+  buffsCatalog: {}, // id -> buff definition
+  buffTargets: {}, // id -> {id,name,type:'self'|'ally'|'corpse',buffs:{buffId:count},notes:''}
+  corpses: [], // {id,name,durability,shadowIds,stats,inheritedTechniques}
+  abilities: [], // {id,name,role,description,action,range,target,save,dc,damage,mechanical,combo,targetId}
   ui: {
-    collapsedPanels: {},
+    collapsedPanels: { 1: false, 2: false, 3: false, 4: false, 5: false, 6: false },
     currentBuffTargetId: "self",
-    lastDC: null
+    buffToolsView: "hide",
+    lastDC: null,
+    nextIds: { shadow: 1, corpse: 1, ally: 1, ability: 1 }
   }
 };
 
-// ---------- Utilities ----------
+// ---------- UTIL ----------
 
-function uid(prefix = "id") {
-  return `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      state = {
+        ...state,
+        ...saved,
+        ui: {
+          ...state.ui,
+          ...(saved.ui || {})
+        }
+      };
+    }
+  } catch (err) {
+    console.error("Failed to load state", err);
+  }
 }
 
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.error("Failed to save state", e);
+  } catch (err) {
+    console.error("Failed to save state", err);
   }
 }
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    state = Object.assign(state, parsed);
-  } catch (e) {
-    console.error("Failed to load state", e);
-  }
+function nextId(kind) {
+  const id = `${kind}-${state.ui.nextIds[kind] || 1}`;
+  state.ui.nextIds[kind] = (state.ui.nextIds[kind] || 1) + 1;
+  return id;
 }
 
-// ---------- Initialization ----------
+// ---------- BUFFS CATALOG ----------
 
-document.addEventListener("DOMContentLoaded", () => {
-  // Load state and set defaults
-  loadState();
+function createDefaultBuffs() {
+  const buffs = {};
 
-  // Ensure buffs dictionary exists
-  if (!state.buffs || Object.keys(state.buffs).length === 0) {
-    state.buffs = {};
-    DEFAULT_BUFFS.forEach(b => {
-      state.buffs[b.id] = b;
+  function add(buff) {
+    buffs[buff.id] = buff;
+  }
+
+  // Defensive / HP
+  add({
+    id: "temp20",
+    name: "+20 Temp HP",
+    category: "defense",
+    baseCost: 8,
+    description: "Gain 20 temporary hit points. Stacks add more temp HP.",
+    effect: { type: "tempHP", amount: 20 }
+  });
+
+  add({
+    id: "temp50",
+    name: "+50 Temp HP",
+    category: "defense",
+    baseCost: 16,
+    description: "Gain 50 temporary hit points. Stacks add more temp HP.",
+    effect: { type: "tempHP", amount: 50 }
+  });
+
+  add({
+    id: "shadowCarapace",
+    name: "Shadow Carapace",
+    category: "defense",
+    baseCost: 18,
+    description: "Your shadow plates harden, granting +1 AC per stack.",
+    effect: { type: "ac", amount: 1 }
+  });
+
+  add({
+    id: "shadowArmorNight",
+    name: "Shadow Armor of Night",
+    category: "defense",
+    baseCost: 14,
+    description: "In dim light or darkness, gain +1 AC per stack.",
+    effect: { type: "acDark", amount: 1 }
+  });
+
+  add({
+    id: "mundaneResist",
+    name: "Resistance to Non-magical Weapons",
+    category: "defense",
+    baseCost: 20,
+    description: "Gain resistance to bludgeoning, piercing, and slashing from non-magical attacks. Stacks grant extra uses per day or extra targets (DM adjudicates).",
+    effect: { type: "other", tag: "resistance_mundane" }
+  });
+
+  // Mobility
+  add({
+    id: "move10",
+    name: "+10 ft Movement",
+    category: "mobility",
+    baseCost: 10,
+    description: "Shadow-slick footing. Gain +10 ft walking speed per stack.",
+    effect: { type: "speed", amount: 10 }
+  });
+
+  add({
+    id: "shadowStep30",
+    name: "Shadow Step (30 ft)",
+    category: "mobility",
+    baseCost: 18,
+    description: "As a bonus action, teleport up to 30 ft between areas of dim light or darkness. Stacks grant more uses per round or more targets.",
+    effect: { type: "other", tag: "shadow_step_30" }
+  });
+
+  add({
+    id: "shadowStep60",
+    name: "Shadow Step (60 ft)",
+    category: "mobility",
+    baseCost: 28,
+    description: "As a bonus action, teleport up to 60 ft. Stacks increase uses or distance (DM adjudicates).",
+    effect: { type: "other", tag: "shadow_step_60" }
+  });
+
+  add({
+    id: "shadowDash",
+    name: "Shadow Dash",
+    category: "mobility",
+    baseCost: 15,
+    description: "Once per turn, move an additional 10 ft without provoking opportunity attacks. Stacks improve distance or number of uses.",
+    effect: { type: "other", tag: "shadow_dash" }
+  });
+
+  // Save bonuses (+2 to STR/DEX/CON saves only; expensive)
+  add({
+    id: "plus2_str_save",
+    name: "+2 STR Save Bonus",
+    category: "saves",
+    baseCost: 25,
+    description: "Your muscles remember the shadows’ strength. Gain +2 to Strength saving throws per stack.",
+    effect: { type: "saveBonus", ability: "STR", amountPerStack: 2 }
+  });
+  add({
+    id: "plus2_dex_save",
+    name: "+2 DEX Save Bonus",
+    category: "saves",
+    baseCost: 30,
+    description: "Shadow reflexes. Gain +2 to Dexterity saving throws per stack.",
+    effect: { type: "saveBonus", ability: "DEX", amountPerStack: 2 }
+  });
+  add({
+    id: "plus2_con_save",
+    name: "+2 CON Save Bonus",
+    category: "saves",
+    baseCost: 35,
+    description: "Shadow-fortified body. Gain +2 to Constitution saving throws per stack.",
+    effect: { type: "saveBonus", ability: "CON", amountPerStack: 2 }
+  });
+
+  // Advantage on saves
+  const saveAbilities = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+  saveAbilities.forEach((ab) => {
+    add({
+      id: `adv_${ab.toLowerCase()}_save`,
+      name: `Advantage on ${ab} saves`,
+      category: "saves",
+      baseCost: 25,
+      description: `Your shadow anticipates threats. You have advantage on ${ab} saving throws.`,
+      effect: { type: "advSave", ability: ab }
     });
-  }
+  });
 
-  // Ensure buffTargets, with self target
+  // Advantage on ability checks (all six abilities, same base cost as saves)
+  const checkAbilities = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+  checkAbilities.forEach((ab) => {
+    add({
+      id: `adv_${ab.toLowerCase()}_check`,
+      name: `Advantage on ${ab} checks`,
+      category: "checks",
+      baseCost: 25,
+      description: `Your shadow guides your ${ab} ability checks, granting advantage.`,
+      effect: { type: "advCheck", ability: ab }
+    });
+  });
+
+  // Offensive / utility
+  add({
+    id: "shadowWeapon",
+    name: "Shadow Weapon",
+    category: "offense",
+    baseCost: 14,
+    description: "Conjure a shadow-forged weapon that counts as magical for overcoming resistance. Stacks can add riders (extra damage, reach, etc.).",
+    effect: { type: "other", tag: "shadow_weapon" }
+  });
+
+  add({
+    id: "shadowRedirect",
+    name: "Shadow Redirect",
+    category: "offense",
+    baseCost: 20,
+    description: "When you or a creature within 5 ft would take damage, you can use your reaction to reduce it and redirect some to another target (DM adjudicates exact amount). Stacks add more uses.",
+    effect: { type: "other", tag: "shadow_redirect" }
+  });
+
+  add({
+    id: "shadowShackles",
+    name: "Shadow Shackles",
+    category: "control",
+    baseCost: 22,
+    description: "Gain an at-will restraining effect: shadow chains attempt to grapple and restrain foes. Stacks can boost the save DC or number of targets.",
+    effect: { type: "other", tag: "shadow_shackles" }
+  });
+
+  return buffs;
+}
+
+// exponential cost: base for first copy, then grows quickly
+function buffStackCost(base, count) {
+  let total = 0;
+  for (let i = 1; i <= count; i++) {
+    if (i === 1) total += base;
+    else total += Math.round(base * (1 + 0.5 * (i - 1) * (i - 1)));
+  }
+  return total;
+}
+
+function nextBuffIncrementCost(base, count) {
+  const nextIndex = count + 1;
+  if (nextIndex === 1) return base;
+  return Math.round(base * (1 + 0.5 * (nextIndex - 1) * (nextIndex - 1)));
+}
+
+// ---------- INIT ----------
+
+function ensureBaseState() {
+  if (!state.buffsCatalog || Object.keys(state.buffsCatalog).length === 0) {
+    state.buffsCatalog = createDefaultBuffs();
+  }
   if (!state.buffTargets || Object.keys(state.buffTargets).length === 0) {
     const selfTarget = {
       id: "self",
-      name: "Elren (Primary User)",
       type: "self",
-      buffs: {}
+      name: "Elren (Primary User)",
+      buffs: {},
+      notes: ""
     };
-    state.buffTargets = { self: selfTarget };
+    state.buffTargets[selfTarget.id] = selfTarget;
     state.ui.currentBuffTargetId = "self";
+  } else if (!state.buffTargets[state.ui.currentBuffTargetId]) {
+    // pick any
+    const first = Object.values(state.buffTargets)[0];
+    state.ui.currentBuffTargetId = first.id;
   }
-
-  // Build dropdown options
-  initDropdowns();
-
-  // Attach handlers
-  initPanelToggles();
-  initShadowPanel();
-  renderShadows();
-  initBuffPanel();
-  renderBuffPanel();
-  initCorpsePanel();
-  initAIPanel();
-  renderSummary();
-
-  // Update totals SPU etc.
-  updateShadowTotals();
-});
-
-// ---------- Collapsible panels ----------
-
-function initPanelToggles() {
-  const cards = document.querySelectorAll(".card-collapsible");
-  cards.forEach(card => {
-    const id = card.dataset.cardId;
-    const toggle = card.querySelector(".card-toggle");
-    if (!toggle) return;
-
-    // Restore collapsed state
-    if (state.ui.collapsedPanels[id]) {
-      card.classList.add("collapsed");
-    }
-
-    toggle.addEventListener("click", () => {
-      card.classList.toggle("collapsed");
-      state.ui.collapsedPanels[id] = card.classList.contains("collapsed");
-      saveState();
-    });
-  });
 }
 
-// ---------- Dropdowns & targets ----------
+// ---------- DOM HELPERS ----------
 
-function initDropdowns() {
-  // Proficiency tiers
-  const profSelect = document.getElementById("proficiency-tier");
-  PROFICIENCY_TIERS.forEach(t => {
+function qs(sel) {
+  return document.querySelector(sel);
+}
+
+function qsa(sel) {
+  return Array.from(document.querySelectorAll(sel));
+}
+
+// ---------- PANEL 1: SHADOW CALC ----------
+
+const PROF_TIERS = [
+  "0 – Untrained (civilian, fodder)",
+  "1 – Basic training (rookie fighter)",
+  "2 – Seasoned fighter",
+  "3 – Veteran specialist",
+  "4 – Elite commander",
+  "5 – Master combatant",
+  "6 – Legendary master",
+  "7 – Mythic prodigy",
+  "8 – World-class monster",
+  "9 – Beyond mortal limits"
+];
+
+const TEMPLATE_TIERS = [
+  "0 – Ordinary human (no training)",
+  "1 – Trained fighter (martial)",
+  "2 – Trained fighter (elite)",
+  "3 – Advanced fighter with basic Haki",
+  "4 – Advanced fighter with strong Haki / unique style",
+  "5 – Devil Fruit user (standard)",
+  "6 – Advanced fighter + Devil Fruit user",
+  "7 – Mythical Devil Fruit user",
+  "8 – Big Boss (Emperor-tier threat)",
+  "9 – Final world boss / divine monster"
+];
+
+function populateShadowSelects() {
+  const profSel = qs("#shadow-prof");
+  const templSel = qs("#shadow-template");
+  profSel.innerHTML = "";
+  PROF_TIERS.forEach((label, idx) => {
     const opt = document.createElement("option");
-    opt.value = String(t.id);
-    opt.textContent = t.label;
-    profSelect.appendChild(opt);
+    opt.value = String(idx);
+    opt.textContent = label;
+    profSel.appendChild(opt);
   });
-  profSelect.value = "0";
-
-  // Template tiers
-  const templateSelect = document.getElementById("template-tier");
-  TEMPLATE_TIERS.forEach(t => {
+  templSel.innerHTML = "";
+  TEMPLATE_TIERS.forEach((label, idx) => {
     const opt = document.createElement("option");
-    opt.value = String(t.id);
-    opt.textContent = t.label;
-    templateSelect.appendChild(opt);
-  });
-  templateSelect.value = "0";
-
-  updateBuffTargetSelects();
-}
-
-function updateBuffTargetSelects() {
-  const targetSelect = document.getElementById("buff-target-select");
-  const abilityTarget = document.getElementById("ability-target-select");
-  if (!targetSelect || !abilityTarget) return;
-
-  [targetSelect, abilityTarget].forEach(sel => {
-    sel.innerHTML = "";
-    Object.values(state.buffTargets).forEach(t => {
-      const opt = document.createElement("option");
-      opt.value = t.id;
-      opt.textContent =
-        t.type === "self"
-          ? "Elren (Primary User)"
-          : t.type === "corpse"
-          ? `Corpse: ${t.name}`
-          : `Ally: ${t.name}`;
-      sel.appendChild(opt);
-    });
-  });
-
-  targetSelect.value = state.ui.currentBuffTargetId || "self";
-  abilityTarget.value = state.ui.currentBuffTargetId || "self";
-}
-
-// ---------- Shadow panel (1 & 2) ----------
-
-function initShadowPanel() {
-  const btnCalc = document.getElementById("btn-calc-shadow");
-  const btnAdd = document.getElementById("btn-add-shadow");
-
-  btnCalc.addEventListener("click", () => {
-    const nameInput = document.getElementById("shadow-name");
-    const rawInput = document.getElementById("raw-might");
-    const profSelect = document.getElementById("proficiency-tier");
-    const templateSelect = document.getElementById("template-tier");
-    const output = document.getElementById("shadow-calc-output");
-
-    const name = nameInput.value.trim() || "Unnamed Shadow";
-    const raw = Math.max(0, Math.min(20, Number(rawInput.value) || 0));
-    const profId = Number(profSelect.value);
-    const templateId = Number(templateSelect.value);
-
-    const { sl, spu, scoreBreakdown } = calculateShadowPower(raw, profId, templateId);
-
-    output.innerHTML = `
-      <strong>${name}</strong><br/>
-      Shadow Level (SL): <strong>${sl}</strong><br/>
-      Shadow Power Units (SPU): <strong>${spu}</strong><br/>
-      <span class="shadow-breakdown">${scoreBreakdown}</span>
-    `;
-
-    btnAdd.disabled = false;
-    btnAdd.dataset.pendingName = name;
-    btnAdd.dataset.pendingRaw = raw;
-    btnAdd.dataset.pendingProf = profId;
-    btnAdd.dataset.pendingTemplate = templateId;
-    btnAdd.dataset.pendingSL = sl;
-    btnAdd.dataset.pendingSPU = spu;
-  });
-
-  btnAdd.addEventListener("click", () => {
-    if (btnAdd.disabled) return;
-    const id = uid("shadow");
-    const newShadow = {
-      id,
-      name: btnAdd.dataset.pendingName,
-      raw: Number(btnAdd.dataset.pendingRaw),
-      profTier: Number(btnAdd.dataset.pendingProf),
-      templateTier: Number(btnAdd.dataset.pendingTemplate),
-      sl: Number(btnAdd.dataset.pendingSL),
-      spu: Number(btnAdd.dataset.pendingSPU),
-      active: true,
-      techniquesText: ""
-    };
-    state.shadows.push(newShadow);
-    saveState();
-    renderShadows();
-    updateShadowTotals();
-
-    // Reset add button
-    btnAdd.disabled = true;
+    opt.value = String(idx);
+    opt.textContent = label;
+    templSel.appendChild(opt);
   });
 }
 
-function calculateShadowPower(raw, profId, templateId) {
-  const maxProf = PROFICIENCY_TIERS[PROFICIENCY_TIERS.length - 1].id || 9;
-  const maxTemplate = TEMPLATE_TIERS[TEMPLATE_TIERS.length - 1].id || 7;
+function computeShadowLevel(raw, profTier, templateTier) {
+  const rawNorm = Math.max(0, Math.min(20, raw)) / 20;
+  const profNorm = profTier / (PROF_TIERS.length - 1 || 1);
+  const templNorm = templateTier / (TEMPLATE_TIERS.length - 1 || 1);
 
-  const rawNorm = raw / 20;
-  const profNorm = profId / maxProf;
-  const templNorm = templateId / maxTemplate;
+  const rawWeight = 0.6;
+  const profWeight = 0.6;
+  const templWeight = 0.6;
 
-  // Multiplicative, with floor factors to keep civilians >0
-  const rawFactor = 0.4 + 0.6 * rawNorm;
-  const profFactor = 0.4 + 0.6 * profNorm;
-  const templFactor = 0.4 + 0.6 * templNorm;
+  const r = 0.4 + rawWeight * rawNorm;
+  const p = 0.4 + profWeight * profNorm;
+  const t = 0.4 + templWeight * templNorm;
 
-  const overall = rawFactor * profFactor * templFactor; // 0.064 to 1
+  const overall = r * p * t; // 0.064 – 1 roughly
+  const scaled = overall * overall;
 
-  // Square to give bigger gap at the top end
-  const scaled = overall * overall; // ~0 to 1
+  const SL = Math.max(1, Math.round(overall * 10)); // 1–10
+  const SPU = Math.max(1, Math.round(scaled * 1000)); // 1–1000
 
-  const spu = Math.max(1, Math.round(scaled * 1000)); // 1 – 1000
-  const sl = Math.max(1, Math.round(overall * 10)); // 1 – 10
+  return { SL, SPU, components: { r, p, t, overall } };
+}
 
-  const scoreBreakdown = `
-    Raw Might contribution: ${(rawNorm * 100).toFixed(0)}%<br/>
-    Training contribution: ${(profNorm * 100).toFixed(0)}%<br/>
-    Template contribution: ${(templNorm * 100).toFixed(0)}%<br/>
-    Overall Shadow Score: ${(overall * 100).toFixed(1)}% of maximum.
+function handleCalcShadow() {
+  const name = qs("#shadow-name").value.trim() || "Unnamed Shadow";
+  const raw = Number(qs("#shadow-raw").value || 0);
+  const prof = Number(qs("#shadow-prof").value || 0);
+  const templ = Number(qs("#shadow-template").value || 0);
+
+  const { SL, SPU, components } = computeShadowLevel(raw, prof, templ);
+  const out = qs("#shadow-calc-output");
+  out.innerHTML = `
+    <strong>${name}</strong> → <strong>Shadow Level ${SL}</strong>, <strong>${SPU} SPU</strong><br/>
+    <span class="muted">Breakdown (normalized): Raw ${components.r.toFixed(
+      2
+    )}, Proficiency ${components.p.toFixed(2)}, Template ${components.t.toFixed(
+    2
+  )}.<br/>Perfect 1000 SPU is only reached when all three inputs are maxed.</span>
   `;
-
-  return { sl, spu, scoreBreakdown };
 }
+
+function handleAddShadow() {
+  const name = qs("#shadow-name").value.trim() || "Unnamed Shadow";
+  const raw = Number(qs("#shadow-raw").value || 0);
+  const prof = Number(qs("#shadow-prof").value || 0);
+  const templ = Number(qs("#shadow-template").value || 0);
+  const { SL, SPU } = computeShadowLevel(raw, prof, templ);
+
+  const shadow = {
+    id: nextId("shadow"),
+    name,
+    raw,
+    profTier: prof,
+    templateTier: templ,
+    sl: SL,
+    spu: SPU,
+    active: true,
+    techniquesText: ""
+  };
+  state.shadows.push(shadow);
+  renderShadows();
+  updateShadowTotals();
+  renderCorpseShadowSelect();
+  renderSummary();
+  saveState();
+}
+
+// ---------- PANEL 2: SHADOW LIST & TOTALS ----------
 
 function renderShadows() {
-  const list = document.getElementById("shadow-list");
-  const emptyState = document.getElementById("shadow-list-empty");
-  const corpseSelect = document.getElementById("corpse-shadow-select");
-
-  list.innerHTML = "";
-  corpseSelect.innerHTML = "";
-
+  const container = qs("#shadow-list");
+  container.innerHTML = "";
   if (!state.shadows.length) {
-    emptyState.style.display = "block";
-  } else {
-    emptyState.style.display = "none";
+    container.innerHTML =
+      '<p class="muted">No shadows stored yet. Add one in panel 1.</p>';
+    return;
   }
 
-  state.shadows.forEach(shadow => {
-    // list item
+  state.shadows.forEach((sh) => {
     const card = document.createElement("div");
     card.className = "shadow-card";
 
     const header = document.createElement("div");
     header.className = "shadow-card-header";
-
-    const title = document.createElement("h3");
-    title.textContent = shadow.name;
-    header.appendChild(title);
-
+    const nameEl = document.createElement("div");
+    nameEl.className = "shadow-name";
+    nameEl.textContent = sh.name;
     const tag = document.createElement("span");
     tag.className = "shadow-tag";
-    tag.textContent = `SL ${shadow.sl} | ${shadow.spu} SPU`;
+    tag.textContent = `SL ${sh.sl} | ${sh.spu} SPU`;
+    header.appendChild(nameEl);
     header.appendChild(tag);
 
-    const main = document.createElement("div");
-    main.className = "shadow-card-main";
-    main.innerHTML = `
-      <span><strong>Raw:</strong> ${shadow.raw}/20</span>
-      <span><strong>Prof:</strong> ${PROFICIENCY_TIERS.find(p => p.id === shadow.profTier)?.id ?? shadow.profTier}</span>
-      <span><strong>Template:</strong> ${
-        TEMPLATE_TIERS.find(t => t.id === shadow.templateTier)?.label ?? shadow.templateTier
-      }</span>
-    `;
+    const meta = document.createElement("small");
+    meta.textContent = `Raw ${sh.raw}/20 · Prof: ${
+      PROF_TIERS[sh.profTier]
+    } · Template: ${TEMPLATE_TIERS[sh.templateTier]}`;
 
-    const tools = document.createElement("div");
-    tools.className = "shadow-card-tools";
+    const techField = document.createElement("div");
+    techField.className = "field";
+    const lbl = document.createElement("label");
+    lbl.textContent =
+      "Known abilities / attacks (1 per line). Used for inherited techniques on corpses.";
+    const ta = document.createElement("textarea");
+    ta.rows = 3;
+    ta.value = sh.techniquesText || "";
+    ta.addEventListener("input", () => {
+      sh.techniquesText = ta.value;
+      renderCorpseStatIfVisible();
+      renderSummary();
+      saveState();
+    });
+    techField.appendChild(lbl);
+    techField.appendChild(ta);
 
-    const left = document.createElement("div");
-    left.className = "shadow-card-tools-left";
+    const activeRow = document.createElement("div");
+    activeRow.className = "shadow-active-row";
 
     const activeLabel = document.createElement("label");
-    activeLabel.style.display = "flex";
-    activeLabel.style.alignItems = "center";
-    activeLabel.style.gap = "4px";
-
     const activeCheckbox = document.createElement("input");
     activeCheckbox.type = "checkbox";
-    activeCheckbox.checked = shadow.active;
+    activeCheckbox.checked = sh.active;
     activeCheckbox.addEventListener("change", () => {
-      shadow.active = activeCheckbox.checked;
-      saveState();
+      sh.active = activeCheckbox.checked;
       updateShadowTotals();
+      renderCorpseShadowSelect();
+      renderSummary();
+      saveState();
     });
     activeLabel.appendChild(activeCheckbox);
-    const span = document.createElement("span");
-    span.textContent = "Active";
-    activeLabel.appendChild(span);
-
-    left.appendChild(activeLabel);
+    activeLabel.appendChild(
+      document.createTextNode(" Active (contributes SPU)")
+    );
 
     const removeBtn = document.createElement("button");
-    removeBtn.className = "btn danger btn-sm";
+    removeBtn.type = "button";
+    removeBtn.className = "btn-danger small-btn";
     removeBtn.textContent = "Remove";
     removeBtn.addEventListener("click", () => {
-      state.shadows = state.shadows.filter(s => s.id !== shadow.id);
-      saveState();
+      state.shadows = state.shadows.filter((s) => s.id !== sh.id);
+      // also remove from corpuses' shadowIds
+      state.corpses.forEach((c) => {
+        c.shadowIds = c.shadowIds.filter((id) => id !== sh.id);
+      });
       renderShadows();
       updateShadowTotals();
-    });
-
-    tools.appendChild(left);
-    tools.appendChild(removeBtn);
-
-    const ta = document.createElement("textarea");
-    ta.placeholder = "Known abilities / attacks (1 per line). Used for inherited techniques on corpses.";
-    ta.value = shadow.techniquesText || "";
-    ta.addEventListener("input", () => {
-      shadow.techniquesText = ta.value;
+      renderCorpseShadowSelect();
+      renderCorpseStatIfVisible();
+      renderSummary();
       saveState();
     });
 
+    activeRow.appendChild(activeLabel);
+    activeRow.appendChild(removeBtn);
+
     card.appendChild(header);
-    card.appendChild(main);
-    card.appendChild(tools);
-    card.appendChild(ta);
+    card.appendChild(meta);
+    card.appendChild(techField);
+    card.appendChild(activeRow);
 
-    list.appendChild(card);
-
-    // corpse multi-select
-    const opt = document.createElement("option");
-    opt.value = shadow.id;
-    opt.textContent = `${shadow.name} (SL ${shadow.sl}, ${shadow.spu} SPU)`;
-    corpseSelect.appendChild(opt);
+    container.appendChild(card);
   });
 }
 
+function computeSPUTotals() {
+  const totalSPU = state.shadows
+    .filter((s) => s.active)
+    .reduce((sum, s) => sum + s.spu, 0);
+
+  let spent = 0;
+  Object.values(state.buffTargets).forEach((target) => {
+    Object.entries(target.buffs || {}).forEach(([buffId, count]) => {
+      const def = state.buffsCatalog[buffId];
+      if (!def) return;
+      spent += buffStackCost(def.baseCost, count);
+    });
+  });
+
+  return {
+    total: totalSPU,
+    spent,
+    available: Math.max(0, totalSPU - spent)
+  };
+}
+
 function updateShadowTotals() {
-  const total = state.shadows.reduce((sum, s) => sum + s.spu, 0);
-  const spent = computeTotalSpentSPU();
-  const available = Math.max(0, total - spent);
+  const totals = computeSPUTotals();
+  qs("#total-spu").textContent = totals.total;
+  qs("#spent-spu").textContent = totals.spent;
+  qs("#available-spu").textContent = totals.available;
 
-  document.getElementById("total-asp").textContent = total;
-  document.getElementById("spent-asp").textContent = spent;
-  document.getElementById("available-asp").textContent = available;
-
-  renderSelectedBuffs();
+  renderSelectedBuffsSummary();
   renderSummary();
   saveState();
 }
 
-// ---------- Buff panel (3) ----------
+// ---------- PANEL 3: BUFFS ----------
 
-function initBuffPanel() {
-  const targetSelect = document.getElementById("buff-target-select");
-  const addAllyBtn = document.getElementById("btn-add-ally-target");
-  const addCustomBtn = document.getElementById("btn-add-custom-buff");
-  const calcDCBtn = document.getElementById("btn-calc-dc");
-
-  targetSelect.addEventListener("change", () => {
-    state.ui.currentBuffTargetId = targetSelect.value;
-    saveState();
-    renderSelectedBuffs();
-    renderSummary();
-  });
-
-  addAllyBtn.addEventListener("click", () => {
-    const name = prompt("Ally name?");
-    if (!name) return;
-    const id = uid("ally");
+function ensureBuffTarget(id) {
+  if (!state.buffTargets[id]) {
     state.buffTargets[id] = {
       id,
-      name,
+      name: id,
       type: "ally",
-      buffs: {}
+      buffs: {},
+      notes: ""
     };
-    saveState();
-    updateBuffTargetSelects();
-    renderSelectedBuffs();
-    renderSummary();
+  }
+  return state.buffTargets[id];
+}
+
+function renderBuffTargetSelect() {
+  const select = qs("#buff-target-select");
+  select.innerHTML = "";
+
+  const targets = Object.values(state.buffTargets);
+  targets.forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = t.name;
+    select.appendChild(opt);
   });
 
-  addCustomBtn.addEventListener("click", () => {
-    const nameInput = document.getElementById("custom-buff-name");
-    const costInput = document.getElementById("custom-buff-cost");
-    const descInput = document.getElementById("custom-buff-desc");
+  if (!targets.length) return;
 
-    const name = nameInput.value.trim();
-    const cost = Math.max(1, Number(costInput.value) || 1);
-    const desc = descInput.value.trim();
+  if (!state.ui.currentBuffTargetId || !state.buffTargets[state.ui.currentBuffTargetId]) {
+    state.ui.currentBuffTargetId = targets[0].id;
+  }
+  select.value = state.ui.currentBuffTargetId;
 
-    if (!name) {
-      alert("Please enter a buff name.");
-      return;
-    }
-
-    const id = uid("buff");
-    state.buffs[id] = {
-      id,
-      name,
-      baseCost: cost,
-      description: desc || "Custom buff.",
-      effect: { type: "custom", perStack: 1 }
-    };
-
-    nameInput.value = "";
-    descInput.value = "";
-    renderBuffPanel();
-    saveState();
-  });
-
-  calcDCBtn.addEventListener("click", () => {
-    const sl = Number(document.getElementById("dc-shadow-level").value) || 1;
-    const prof = Number(document.getElementById("dc-prof-bonus").value) || 0;
-    const mod = Number(document.getElementById("dc-ability-mod").value) || 0;
-    const bonusFromShadow = Math.floor(sl / 2);
-    const dc = 8 + prof + mod + bonusFromShadow;
-    state.ui.lastDC = dc;
-    saveState();
-
-    document.getElementById("dc-output").textContent =
-      `Suggested DC: ${dc} (8 + prof ${prof} + mod ${mod} + shadow bonus ${bonusFromShadow})`;
-
+  select.addEventListener("change", () => {
+    state.ui.currentBuffTargetId = select.value;
+    renderBuffCards();
+    renderSelectedBuffsSummary();
     renderSummary();
+    saveState();
   });
 }
 
-function renderBuffPanel() {
-  const container = document.getElementById("buff-list");
+function handleAddAllyTarget() {
+  const name = qs("#ally-name-input").value.trim();
+  if (!name) return;
+  const id = nextId("ally");
+  state.buffTargets[id] = {
+    id,
+    type: "ally",
+    name,
+    buffs: {},
+    notes: ""
+  };
+  qs("#ally-name-input").value = "";
+  renderBuffTargetSelect();
+  renderSummary();
+  saveState();
+}
+
+function adjustBuffStacks(buffId, delta) {
+  const target = state.buffTargets[state.ui.currentBuffTargetId];
+  if (!target) return;
+  const current = target.buffs[buffId] || 0;
+  let next = current + delta;
+  if (next < 0) next = 0;
+  target.buffs[buffId] = next;
+  if (next === 0) delete target.buffs[buffId];
+
+  renderBuffCards();
+  updateShadowTotals(); // includes summary refresh & save
+}
+
+function renderBuffCards() {
+  const container = qs("#buff-cards-container");
   container.innerHTML = "";
 
-  Object.values(state.buffs).forEach(buff => {
+  const target = state.buffTargets[state.ui.currentBuffTargetId];
+  if (!target) {
+    container.innerHTML = "<p>No buff target selected.</p>";
+    return;
+  }
+
+  const catalog = state.buffsCatalog;
+  const buffList = Object.values(catalog);
+
+  buffList.forEach((buff) => {
     const card = document.createElement("div");
     card.className = "buff-card";
 
     const header = document.createElement("div");
     header.className = "buff-card-header";
-
-    const name = document.createElement("h3");
-    name.textContent = buff.name;
-    header.appendChild(name);
-
-    const cost = document.createElement("span");
-    cost.textContent = `${buff.baseCost} SPU (base)`;
-    cost.style.fontSize = "0.78rem";
-    cost.style.color = "#c2b8ff";
-    header.appendChild(cost);
-
-    const body = document.createElement("div");
-    body.className = "buff-card-body";
-
-    const p = document.createElement("p");
-    p.textContent = buff.description;
-    body.appendChild(p);
-
+    const nameEl = document.createElement("div");
+    nameEl.className = "buff-name";
+    nameEl.textContent = buff.name;
     const meta = document.createElement("div");
-    meta.className = "buff-card-meta";
-    meta.innerHTML = `<strong>Stacking:</strong> each extra copy costs more but increases the total effect.`;
-    body.appendChild(meta);
+    meta.className = "buff-meta";
+    meta.textContent = `Base ${buff.baseCost} SPU · ${buff.category}`;
+    header.appendChild(nameEl);
+    header.appendChild(meta);
+
+    const desc = document.createElement("div");
+    desc.className = "buff-description";
+    desc.textContent = buff.description;
+
+    const stacksRow = document.createElement("div");
+    stacksRow.className = "buff-stacks-row";
+
+    const currentStacks = target.buffs[buff.id] || 0;
+    const totalCost = buffStackCost(buff.baseCost, currentStacks);
+    const nextCost =
+      currentStacks >= 0 ? nextBuffIncrementCost(buff.baseCost, currentStacks) : buff.baseCost;
+
+    const stackInfo = document.createElement("span");
+    stackInfo.innerHTML = `Copies: <strong>${currentStacks}</strong> · SPU spent here: <strong>${totalCost}</strong><br/>
+      Next copy will cost: <strong>${nextCost}</strong> SPU`;
 
     const controls = document.createElement("div");
-    controls.className = "buff-stack-controls";
+    controls.className = "stack-controls";
+    const minus = document.createElement("button");
+    minus.className = "stack-btn";
+    minus.textContent = "−";
+    minus.addEventListener("click", () => adjustBuffStacks(buff.id, -1));
+    const plus = document.createElement("button");
+    plus.className = "stack-btn";
+    plus.textContent = "+";
+    plus.addEventListener("click", () => adjustBuffStacks(buff.id, +1));
+    controls.appendChild(minus);
+    controls.appendChild(plus);
 
-    const targetId = state.ui.currentBuffTargetId || "self";
-    const target = state.buffTargets[targetId];
-    const currentCount = (target?.buffs?.[buff.id]) || 0;
-
-    const countSpan = document.createElement("span");
-    countSpan.textContent = `Copies: ${currentCount}`;
-    controls.appendChild(countSpan);
-
-    const btnRow = document.createElement("div");
-    btnRow.className = "stack-buttons";
-
-    const decBtn = document.createElement("button");
-    decBtn.className = "stack-btn";
-    decBtn.textContent = "−";
-    decBtn.addEventListener("click", () => adjustBuffStacks(buff.id, -1));
-    const incBtn = document.createElement("button");
-    incBtn.className = "stack-btn";
-    incBtn.textContent = "+";
-    incBtn.addEventListener("click", () => adjustBuffStacks(buff.id, 1));
-
-    btnRow.appendChild(decBtn);
-    btnRow.appendChild(incBtn);
-    controls.appendChild(btnRow);
+    stacksRow.appendChild(stackInfo);
+    stacksRow.appendChild(controls);
 
     card.appendChild(header);
-    card.appendChild(body);
-    card.appendChild(controls);
+    card.appendChild(desc);
+    card.appendChild(stacksRow);
 
     container.appendChild(card);
   });
-
-  renderSelectedBuffs();
 }
 
-function buffStackCost(baseCost, stacks) {
-  // First copy costs base.
-  // After that, costs grow quadratically: base * (1 + (n-1)^2 * 0.5)
-  if (stacks <= 0) return 0;
-  let total = 0;
-  for (let i = 1; i <= stacks; i++) {
-    if (i === 1) total += baseCost;
-    else total += Math.round(baseCost * (1 + 0.5 * Math.pow(i - 1, 2)));
-  }
-  return total;
-}
-
-function adjustBuffStacks(buffId, delta) {
-  const targetId = state.ui.currentBuffTargetId || "self";
-  const target = state.buffTargets[targetId];
-  if (!target) return;
-
-  const prev = target.buffs[buffId] || 0;
-  let next = prev + delta;
-  if (next < 0) next = 0;
-
-  target.buffs[buffId] = next;
-  if (next === 0) {
-    delete target.buffs[buffId];
-  }
-
-  saveState();
-  renderBuffPanel();
-  updateShadowTotals();
-}
-
-function computeTotalSpentSPU() {
-  let total = 0;
-  Object.values(state.buffTargets).forEach(t => {
-    Object.entries(t.buffs || {}).forEach(([buffId, count]) => {
-      const buff = state.buffs[buffId];
-      if (!buff) return;
-      total += buffStackCost(buff.baseCost, count);
-    });
-  });
-  return total;
-}
-
-function renderSelectedBuffs() {
-  const container = document.getElementById("selected-buffs");
-  if (!container) return;
-
-  const targetId = state.ui.currentBuffTargetId || "self";
-  const target = state.buffTargets[targetId];
-  container.innerHTML = "";
-
-  if (!target || !Object.keys(target.buffs || {}).length) {
-    container.classList.add("empty");
-    container.textContent = "No buffs selected for this target yet.";
+function renderSelectedBuffsSummary() {
+  const box = qs("#selected-buffs-summary");
+  const target = state.buffTargets[state.ui.currentBuffTargetId];
+  if (!target) {
+    box.innerHTML = "<p>No target selected.</p>";
     return;
   }
 
-  container.classList.remove("empty");
-
-  // show totals per buff
-  Object.entries(target.buffs).forEach(([buffId, count]) => {
-    const buff = state.buffs[buffId];
-    if (!buff) return;
-    const effect = buff.effect || {};
-    const totalCost = buffStackCost(buff.baseCost, count);
-    const div = document.createElement("div");
-    div.className = "selected-buff-item";
-
-    let effectLine = "";
-    if (effect.type === "tempHP") {
-      effectLine = `Total: +${effect.perStack * count} temporary HP.`;
-    } else if (effect.type === "speed") {
-      effectLine = `Total: +${effect.perStack * count} ft speed.`;
-    } else if (effect.type === "save") {
-      effectLine = `Total: +${effect.perStack * count} to ${effect.stat} saving throws.`;
-    } else if (effect.type === "ac_dark") {
-      effectLine = `Total: +${effect.perStack * count} AC in dim light/darkness.`;
-    } else if (effect.type === "dash") {
-      effectLine = `Total: ${effect.perStack * count} extra ft of dash movement per turn.`;
-    } else {
-      effectLine = `Stacks: ${count}.`;
-    }
-
-    div.innerHTML = `
-      <strong>${buff.name}</strong> ×${count}<br/>
-      ${effectLine}<br/>
-      SPU spent on this buff: ${totalCost}
-    `;
-    container.appendChild(div);
-  });
-}
-
-// ---------- Corpse panel (4) ----------
-
-function initCorpsePanel() {
-  const btn = document.getElementById("btn-generate-corpse");
-  const modeSelect = document.getElementById("corpse-shadow-mode");
-
-  modeSelect.addEventListener("change", () => {
-    const customSelect = document.getElementById("corpse-shadow-select");
-    customSelect.disabled = modeSelect.value !== "custom";
-  });
-
-  btn.addEventListener("click", () => {
-    generateCorpseStatBlock();
-  });
-}
-
-function generateCorpseStatBlock() {
-  const name = document.getElementById("corpse-name").value.trim() || "Unnamed Corpse";
-  const durability = Math.max(1, Math.min(10, Number(document.getElementById("corpse-durability").value) || 1));
-  const mode = document.getElementById("corpse-shadow-mode").value;
-  const customSel = document.getElementById("corpse-shadow-select");
-  const outputContainer = document.getElementById("corpse-output-container");
-  const buffsContainer = document.getElementById("corpse-buffs-container");
-  const buffsSummary = document.getElementById("corpse-buffs-summary");
-
-  let usedShadows = [];
-  if (mode === "active") {
-    usedShadows = state.shadows.filter(s => s.active);
-  } else if (mode === "all") {
-    usedShadows = [...state.shadows];
-  } else {
-    const selectedIds = Array.from(customSel.selectedOptions).map(o => o.value);
-    usedShadows = state.shadows.filter(s => selectedIds.includes(s.id));
+  const entries = Object.entries(target.buffs || {});
+  if (!entries.length) {
+    box.innerHTML = `<p>No buffs spent on <strong>${target.name}</strong> yet.</p>`;
+    return;
   }
 
-  const slSum = usedShadows.reduce((sum, s) => sum + s.sl, 0);
-  const spuSum = usedShadows.reduce((sum, s) => sum + s.spu, 0);
+  let html = `<p>Buffs on <strong>${target.name}</strong>:</p><ul>`;
+  entries.forEach(([buffId, count]) => {
+    const def = state.buffsCatalog[buffId];
+    if (!def) return;
+    const totalCost = buffStackCost(def.baseCost, count);
+    let totalEffect = "";
+    const eff = def.effect;
+    if (eff.type === "tempHP") totalEffect = `Total: +${eff.amount * count} temp HP.`;
+    else if (eff.type === "speed") totalEffect = `Total: +${eff.amount * count} ft speed.`;
+    else if (eff.type === "ac") totalEffect = `Total: +${eff.amount * count} AC.`;
+    else if (eff.type === "acDark")
+      totalEffect = `Total: +${eff.amount * count} AC in dim light/darkness.`;
+    else if (eff.type === "saveBonus")
+      totalEffect = `Total: +${eff.amountPerStack * count} to ${eff.ability} saves.`;
+    else totalEffect = "";
 
-  // Basic stat derivation using durability & shadow power
-  const baseAC = 10 + Math.floor(durability / 2);
-  const acFromShadows = Math.floor(slSum / 3);
-  const armorClass = baseAC + acFromShadows;
-
-  const hp = Math.max(20, durability * 10 + Math.floor(spuSum / 8));
-  const speed = 20 + Math.min(40, Math.floor(slSum / 2) * 5);
-
-  const str = 10 + durability + Math.floor(slSum / 3);
-  const dex = 8 + Math.floor(slSum / 4);
-  const con = 10 + durability;
-  const int = 6 + Math.floor(slSum / 5);
-  const wis = 8 + Math.floor(slSum / 6);
-  const cha = 8 + Math.floor(slSum / 6);
-
-  // Traits text
-  const traitsText = [
-    "Corpse Durability.",
-    `  Built from a Durability Tier ${durability} body; it is extremely hard to destroy.`,
-    "",
-    "Infused Shadows.",
-    `  Infused with ${usedShadows.length || 0} shadow(s), total SL ${slSum}, total ${spuSum} SPU.`,
-    "",
-    "Shadow Instincts.",
-    "  Gains advantage on one type of save (STR, DEX, or CON), chosen when created.",
-    "",
-    "Shadow Resilience.",
-    "  Once per rest, when reduced to 0 HP, it can instead drop to 1 HP (DM option).",
-    "",
-    "Damage Resistances.",
-    "  necrotic; bludgeoning, piercing, and slashing from non-magical attacks (DM option).",
-    "",
-    "Condition Immunities.",
-    "  charmed, frightened, poisoned (DM option).",
-    "",
-    "Senses.",
-    "  darkvision 60 ft., passive Perception ??; understands languages it knew in life;",
-    "  obeys the shadow fruit user."
-  ].join("\n");
-
-  const meleeBonus = Math.floor((str - 10) / 2) + 5;
-  const meleeDamageBonus = Math.floor((str - 10) / 2);
-
-  const actionsText = [
-    "Multiattack.",
-    "  The reanimated corpse makes two attacks: one Slam and one Shadow Lash (or two Slams).",
-    "",
-    "Slam.",
-    `  Melee Weapon Attack: +${meleeBonus} to hit, reach 5 ft., one target.`,
-    `  Hit: 1d10 + ${meleeDamageBonus} bludgeoning damage.`,
-    "",
-    "Shadow Lash.",
-    "  Melee spell-like attack: +? to hit, reach 10 ft., one target.",
-    "  Hit: 2d8 necrotic damage, and the target must succeed on a STR or DEX save",
-    "  (DC based on your shadow DC helper) or be grappled by writhing shadow chains."
-  ].join("\n");
-
-  // Infused shadows & inherited techniques
-  const infusedLines = [];
-  usedShadows.forEach(sh => {
-    infusedLines.push(
-      `• ${sh.name} – SL ${sh.sl}, ${sh.spu} SPU, Template: ${
-        TEMPLATE_TIERS.find(t => t.id === sh.templateTier)?.label ?? sh.templateTier
-      }`
-    );
+    html += `<li><strong>${def.name}</strong> ×${count} – SPU spent: ${totalCost}. ${totalEffect}</li>`;
   });
+  html += "</ul>";
+  box.innerHTML = html;
+}
 
-  const inheritedTechniqueNames = [];
-  usedShadows.forEach(sh => {
-    const lines = (sh.techniquesText || "")
+function handleBuffToolsViewChange() {
+  const val = qs("#buff-tools-select").value;
+  state.ui.buffToolsView = val;
+  const custom = qs("#custom-buff-section");
+  const dc = qs("#dc-helper-section");
+
+  custom.classList.add("hidden");
+  dc.classList.add("hidden");
+
+  if (val === "custom" || val === "both") custom.classList.remove("hidden");
+  if (val === "dc" || val === "both") dc.classList.remove("hidden");
+  saveState();
+}
+
+function handleAddCustomBuff() {
+  const name = qs("#custom-buff-name").value.trim();
+  const cost = Number(qs("#custom-buff-cost").value || 0);
+  const desc = qs("#custom-buff-desc").value.trim();
+  if (!name || cost <= 0) return;
+
+  const id = `custom_${Date.now()}`;
+  state.buffsCatalog[id] = {
+    id,
+    name,
+    category: "custom",
+    baseCost: cost,
+    description: desc || "Custom shadow buff.",
+    effect: { type: "other", tag: "custom" }
+  };
+
+  qs("#custom-buff-name").value = "";
+  qs("#custom-buff-cost").value = "10";
+  qs("#custom-buff-desc").value = "";
+
+  renderBuffCards();
+  saveState();
+}
+
+function handleCalcDC() {
+  const sl = Number(qs("#dc-helper-sl").value || 0);
+  const prof = Number(qs("#dc-helper-prof").value || 0);
+  const mod = Number(qs("#dc-helper-mod").value || 0);
+
+  const dc = 8 + prof + mod + Math.floor(sl / 2);
+  state.ui.lastDC = dc;
+
+  const out = qs("#dc-helper-output");
+  out.innerHTML = `Suggested DC for shadow techniques: <strong>${dc}</strong><br/><span class="muted">Formula: 8 + prof + ability mod + floor(SL / 2).</span>`;
+  renderSummary();
+  saveState();
+}
+
+// ---------- PANEL 4: CORPSE ----------
+
+function renderCorpseShadowSelect() {
+  const sel = qs("#corpse-shadow-select");
+  sel.innerHTML = "";
+  state.shadows.forEach((sh) => {
+    const opt = document.createElement("option");
+    opt.value = sh.id;
+    opt.textContent = `${sh.name} (SL ${sh.sl}, ${sh.spu} SPU)`;
+    sel.appendChild(opt);
+  });
+}
+
+function getShadowsForCorpse(mode, selectedIds) {
+  if (!state.shadows.length) return [];
+  if (mode === "all") return [...state.shadows];
+  if (mode === "active") return state.shadows.filter((s) => s.active);
+  if (mode === "selected") {
+    const set = new Set(selectedIds || []);
+    return state.shadows.filter((s) => set.has(s.id));
+  }
+  return [];
+}
+
+function buildCorpseStats(name, durability, poweringShadows) {
+  const slSum = poweringShadows.reduce((sum, s) => sum + s.sl, 0);
+  const spuSum = poweringShadows.reduce((sum, s) => sum + s.spu, 0);
+
+  const baseAC = 10 + Math.floor(durability / 2) + Math.floor(slSum / 3);
+  const hp = durability * 10 + Math.round(spuSum / 8);
+  const speed = 30 + Math.floor(slSum / 2);
+
+  // ability scores as rough function of durability + SL
+  const STR = 10 + durability + Math.floor(slSum / 4);
+  const DEX = 8 + Math.floor(slSum / 3);
+  const CON = 10 + durability + Math.floor(slSum / 5);
+  const INT = 6 + Math.floor(slSum / 5);
+  const WIS = 8 + Math.floor(slSum / 5);
+  const CHA = 6 + Math.floor(slSum / 6);
+
+  return {
+    name,
+    durability,
+    slSum,
+    spuSum,
+    ac: baseAC,
+    hp,
+    speed,
+    STR,
+    DEX,
+    CON,
+    INT,
+    WIS,
+    CHA
+  };
+}
+
+function gatherInheritedTechniques(poweringShadows) {
+  const set = new Set();
+  poweringShadows.forEach((sh) => {
+    const txt = sh.techniquesText || "";
+    txt
       .split("\n")
-      .map(l => l.trim())
-      .filter(Boolean);
-    lines.forEach(l => {
-      if (!inheritedTechniqueNames.includes(l)) {
-        inheritedTechniqueNames.push(l);
-      }
-    });
+      .map((s) => s.trim())
+      .filter((s) => s.length)
+      .forEach((line) => set.add(line));
   });
+  return Array.from(set);
+}
 
-  const infusedText = infusedLines.length ? infusedLines.join("\n") : "• None";
-  const techniquesTextList = inheritedTechniqueNames.length
-    ? inheritedTechniqueNames.map(t => `• ${t}`).join("\n")
-    : "• None recorded. Add techniques to the powering shadows in panel 2.";
+function upsertCorpseRecord(name, stats, shadowIds, inheritedTechniques) {
+  let corpse = state.corpses.find((c) => c.name === name);
+  if (!corpse) {
+    corpse = {
+      id: nextId("corpse"),
+      name,
+      durability: stats.durability,
+      shadowIds: [...shadowIds],
+      stats,
+      inheritedTechniques
+    };
+    state.corpses.push(corpse);
 
-  outputContainer.innerHTML = "";
+    // also create buff target
+    state.buffTargets[corpse.id] = {
+      id: corpse.id,
+      type: "corpse",
+      name: corpse.name,
+      buffs: {},
+      notes: ""
+    };
+  } else {
+    corpse.durability = stats.durability;
+    corpse.shadowIds = [...shadowIds];
+    corpse.stats = stats;
+    corpse.inheritedTechniques = inheritedTechniques;
+
+    // ensure buff target exists
+    if (!state.buffTargets[corpse.id]) {
+      state.buffTargets[corpse.id] = {
+        id: corpse.id,
+        type: "corpse",
+        name: corpse.name,
+        buffs: {},
+        notes: ""
+      };
+    }
+  }
+  return corpse;
+}
+
+function renderCorpseCard(corpse) {
+  const container = qs("#corpse-stat-block");
+  container.innerHTML = "";
+
+  if (!corpse) return;
+
+  const stats = corpse.stats;
+  const poweringShadows = state.shadows.filter((s) =>
+    corpse.shadowIds.includes(s.id)
+  );
 
   const card = document.createElement("div");
   card.className = "corpse-card";
 
-  const header = document.createElement("div");
-  header.className = "corpse-card-header";
+  const headerRow = document.createElement("div");
+  headerRow.className = "corpse-header-row";
+  const nameEl = document.createElement("div");
+  nameEl.className = "corpse-name";
+  nameEl.textContent = stats.name.toUpperCase();
+  const tag = document.createElement("div");
+  tag.className = "corpse-tier-tag";
+  tag.textContent = `Reanimated Corpse · SL sum ${stats.slSum}, ${stats.spuSum} SPU`;
+  headerRow.appendChild(nameEl);
+  headerRow.appendChild(tag);
 
-  const title = document.createElement("h3");
-  title.textContent = name.toUpperCase();
-  header.appendChild(title);
+  const pillRow = document.createElement("div");
+  pillRow.className = "corpse-pill-row";
+  const acPill = document.createElement("div");
+  acPill.className = "corpse-pill";
+  acPill.textContent = `AC ${stats.ac}`;
+  const hpPill = document.createElement("div");
+  hpPill.className = "corpse-pill";
+  hpPill.textContent = `HP ~${stats.hp} (DM can convert to dice)`;
+  const speedPill = document.createElement("div");
+  speedPill.className = "corpse-pill";
+  speedPill.textContent = `Speed ${stats.speed} ft.`;
+  const abilityPill = document.createElement("div");
+  abilityPill.className = "corpse-pill";
+  abilityPill.textContent = `STR ${stats.STR} · DEX ${stats.DEX} · CON ${stats.CON} · INT ${stats.INT} · WIS ${stats.WIS} · CHA ${stats.CHA}`;
 
-  const tag = document.createElement("span");
-  tag.className = "corpse-tag";
-  tag.textContent = `Tier: Reanimated Corpse (SL sum ${slSum}, ${spuSum} SPU)`;
-  header.appendChild(tag);
+  pillRow.appendChild(acPill);
+  pillRow.appendChild(hpPill);
+  pillRow.appendChild(speedPill);
+  pillRow.appendChild(abilityPill);
 
-  const statRow = document.createElement("div");
-  statRow.className = "corpse-stat-row";
-  statRow.innerHTML = `
-    <div class="corpse-stat-pill"><strong>Armor Class</strong><span>${armorClass} (shadow-reinforced hide)</span></div>
-    <div class="corpse-stat-pill"><strong>Hit Points</strong><span>~${hp} (DM can convert to dice)</span></div>
-    <div class="corpse-stat-pill"><strong>Speed</strong><span>${speed} ft.</span></div>
-    <div class="corpse-stat-pill"><strong>STR / DEX / CON</strong><span>${str} / ${dex} / ${con}</span></div>
-    <div class="corpse-stat-pill"><strong>INT / WIS / CHA</strong><span>${int} / ${wis} / ${cha}</span></div>
-  `;
+  // Traits section
+  const traitsSec = document.createElement("div");
+  traitsSec.className = "corpse-section";
+  traitsSec.innerHTML = `<h4>Traits</h4>`;
+  const traitsList = document.createElement("ul");
 
-  const traitsSection = document.createElement("div");
-  traitsSection.className = "corpse-section";
-  traitsSection.innerHTML = `<h4>Traits</h4><pre>${traitsText}</pre>`;
-
-  const actionsSection = document.createElement("div");
-  actionsSection.className = "corpse-section";
-  actionsSection.innerHTML = `<h4>Actions</h4><pre>${actionsText}</pre>`;
-
-  const infusedSection = document.createElement("div");
-  infusedSection.className = "corpse-section";
-  infusedSection.innerHTML = `
-    <h4>Infused Shadows</h4>
-    <pre>${infusedText}</pre>
-    <h4>Inherited Techniques (from powering shadows)</h4>
-    <pre>${techniquesTextList}</pre>
-  `;
-
-  const abilityGrid = document.createElement("div");
-  abilityGrid.className = "corpse-ability-grid";
-  abilityGrid.appendChild(traitsSection);
-  abilityGrid.appendChild(actionsSection);
-  abilityGrid.appendChild(infusedSection);
-
-  card.appendChild(header);
-  card.appendChild(statRow);
-  card.appendChild(abilityGrid);
-
-  outputContainer.appendChild(card);
-
-  // Save corpse into state and link as buff target
-  const id = uid("corpse");
-  const corpseObj = {
-    id,
-    name,
-    durability,
-    shadowIds: usedShadows.map(s => s.id),
-    slSum,
-    spuSum,
-    stats: { armorClass, hp, speed, str, dex, con, int, wis, cha }
-  };
-  state.corpses.push(corpseObj);
-
-  // Make or update buff target
-  state.buffTargets[id] = state.buffTargets[id] || {
-    id,
-    name,
-    type: "corpse",
-    buffs: {}
-  };
-  state.buffTargets[id].name = name;
-
-  saveState();
-  updateBuffTargetSelects();
-  renderSelectedBuffs();
-
-  // Show buffs summary area
-  buffsContainer.classList.remove("hidden");
-  buffsSummary.textContent =
-    "Buffs for this corpse are shown in panel 3 when you select it as a buff target, and summarized in panel 6.";
-
-  const editBtn = document.getElementById("btn-edit-corpse-buffs");
-  editBtn.onclick = () => {
-    state.ui.currentBuffTargetId = id;
-    saveState();
-    updateBuffTargetSelects();
-    renderBuffPanel();
-    // Scroll to panel 3
-    document.querySelector('[data-card-id="panel3"]').scrollIntoView({ behavior: "smooth" });
+  const item = (text) => {
+    const li = document.createElement("li");
+    li.textContent = text;
+    traitsList.appendChild(li);
   };
 
-  renderSummary();
-}
+  item(`Corpse Durability: Tier ${stats.durability} body; very hard to destroy for its size.`);
+  item(
+    `Infused Shadows: Powered by ${poweringShadows.length} shadow(s); total SL ${stats.slSum}, total ${stats.spuSum} SPU. Personality and aggression are shaped by those shadows.`
+  );
+  item(
+    "Shadow Instincts: Gains advantage on one type of save (STR, DEX, or CON) chosen when created."
+  );
+  item(
+    "Shadow Resilience (DM option): Once per long rest, when reduced to 0 HP, it instead drops to 1 HP."
+  );
+  item(
+    "Damage Resistances (DM option): Necrotic; bludgeoning, piercing, and slashing from non-magical attacks."
+  );
+  item("Condition Immunities (DM option): Charmed, frightened, poisoned.");
+  item(
+    "Senses: Darkvision 60 ft., passive Perception ??. Languages: understands any languages it knew in life (if any)."
+  );
+  item("Loyalty: Obeys the shadow fruit user’s commands to the best of its ability.");
 
-// ---------- AI panel (5) ----------
+  traitsSec.appendChild(traitsList);
 
-function initAIPanel() {
-  const btnGenerate = document.getElementById("btn-generate-ai");
-  const btnAddEmpty = document.getElementById("btn-add-empty-ability");
-  const abilityTargetSelect = document.getElementById("ability-target-select");
+  // Actions section
+  const actionsSec = document.createElement("div");
+  actionsSec.className = "corpse-section";
+  actionsSec.innerHTML = `<h4>Actions</h4>`;
+  const actionsList = document.createElement("ul");
 
-  abilityTargetSelect.addEventListener("change", () => {
-    state.ui.currentBuffTargetId = abilityTargetSelect.value;
-    saveState();
+  const multi = document.createElement("li");
+  multi.textContent =
+    "Multiattack: The reanimated corpse makes two attacks: one Slam and one Shadow Lash (or two Slams, DM’s choice).";
+  actionsList.appendChild(multi);
+
+  const slam = document.createElement("li");
+  slam.textContent = `Slam: Melee Weapon Attack: +${Math.floor(
+    (stats.STR - 10) / 2
+  ) + 5} to hit, reach 5 ft., one target. Hit: 1d10 + ${
+    Math.floor((stats.STR - 10) / 2) + 5
+  } bludgeoning damage.`;
+  actionsList.appendChild(slam);
+
+  const lashDc = state.ui.lastDC || 15;
+  const lash = document.createElement("li");
+  lash.textContent = `Shadow Lash: Melee spell-like attack: +${
+    5 + Math.floor(stats.slSum / 4)
+  } to hit, reach 10 ft., one target. Hit: 2d8 necrotic damage, and the target must succeed on a STR or DEX save (DC ${lashDc}) or be grappled and restrained by writhing shadow chains.`;
+  actionsList.appendChild(lash);
+
+  actionsSec.appendChild(actionsList);
+
+  // Infused shadows section
+  const infusedSec = document.createElement("div");
+  infusedSec.className = "corpse-section";
+  infusedSec.innerHTML = `<h4>Infused Shadows</h4>`;
+  const infusedList = document.createElement("ul");
+  poweringShadows.forEach((sh) => {
+    const li = document.createElement("li");
+    li.textContent = `${sh.name} – SL ${sh.sl}, ${sh.spu} SPU, Template: ${
+      TEMPLATE_TIERS[sh.templateTier]
+    }`;
+    infusedList.appendChild(li);
   });
+  if (!poweringShadows.length) {
+    const li = document.createElement("li");
+    li.textContent = "No shadows currently powering this corpse.";
+    infusedList.appendChild(li);
+  }
+  infusedSec.appendChild(infusedList);
 
-  btnAddEmpty.addEventListener("click", () => {
-    createAbilityCard({
-      name: "",
-      role: "",
-      summary: "",
-      action: "",
-      range: "",
-      target: "",
-      save: "",
-      dc: "",
-      damage: "",
-      effect: "",
-      combo: "",
-      targetId: state.ui.currentBuffTargetId || "self"
+  // Inherited techniques section
+  const inherited = gatherInheritedTechniques(poweringShadows);
+  const inheritSec = document.createElement("div");
+  inheritSec.className = "corpse-section";
+  inheritSec.innerHTML = `<h4>Inherited Techniques</h4>`;
+  const inhList = document.createElement("ul");
+  if (inherited.length) {
+    inherited.forEach((tech) => {
+      const li = document.createElement("li");
+      li.textContent = tech;
+      inhList.appendChild(li);
     });
-  });
+  } else {
+    const li = document.createElement("li");
+    li.textContent =
+      "No specific techniques recorded on powering shadows yet.";
+    inhList.appendChild(li);
+  }
+  inheritSec.appendChild(inhList);
 
-  btnGenerate.addEventListener("click", () => {
-    generateAbilitiesWithAI();
-  });
+  card.appendChild(headerRow);
+  card.appendChild(pillRow);
+  card.appendChild(traitsSec);
+  card.appendChild(actionsSec);
+  card.appendChild(infusedSec);
+  card.appendChild(inheritSec);
 
-  renderAbilities();
+  container.appendChild(card);
 }
 
-function generateAbilitiesWithAI() {
-  const notes = document.getElementById("ai-notes").value.trim();
-  const container = document.getElementById("ai-abilities-container");
-  container.innerHTML = "<p>Contacting AI and parsing abilities… (You will plug in your API logic here.)</p>";
+function handleGenerateCorpse() {
+  const nameInput = qs("#corpse-name");
+  const name = nameInput.value.trim() || "Unnamed Corpse";
+  const durability = Number(qs("#corpse-durability").value || 1);
+  const mode = qs("#corpse-shadow-mode").value;
+  const selectedIds = Array.from(
+    qs("#corpse-shadow-select").selectedOptions
+  ).map((o) => o.value);
 
-  // This is just a stub so the UI works without a backend.
-  // You can replace this with a real fetch() to your Vercel function.
-  setTimeout(() => {
-    // Example fake response
-    const fakeAbilitiesText = [
-      {
-        name: "Shadow Gale Barrage",
-        summary: "A flurry of razor-sharp shadow blades that slice enemies in an arc.",
-        action: "Action",
-        range: "30 ft cone",
-        target: "All creatures in cone",
-        save: "Dexterity save",
-        dc: state.ui.lastDC || 16,
-        damage: "6d8 slashing + 4d8 necrotic",
-        effect: "On a failed save, full damage; on success, half damage.",
-        combo: "Works well after restraining targets with Shadow Bind."
-      },
-      {
-        name: "Shadow Asgard Ascendant",
-        summary: "Medium-large transformation; body swells with roaring shadow aura.",
-        action: "Action",
-        range: "Self",
-        target: "Self",
-        save: "-",
-        dc: "",
-        damage: "-",
-        effect: "Gain big boost to STR, CON, AC and temp HP for 1 minute (DM sets exact numbers).",
-        combo: "Consumes large SPU; best used for boss fights."
-      },
-      {
-        name: "Grasping Coffin",
-        summary: "Shadows erupt as coffins that clamp around enemies.",
-        action: "Action",
-        range: "60 ft",
-        target: "Up to 3 creatures",
-        save: "Strength save",
-        dc: state.ui.lastDC || 16,
-        damage: "3d8 bludgeoning + restrained on fail",
-        effect: "Restrained while coffins hold; they can repeat the save at end of turns.",
-        combo: "Sets up advantage for your melee or corpses’ attacks."
-      }
-    ];
+  const poweringShadows = getShadowsForCorpse(mode, selectedIds);
+  const stats = buildCorpseStats(name, durability, poweringShadows);
+  const inheritedTechniques = gatherInheritedTechniques(poweringShadows);
+  const shadowIds = poweringShadows.map((s) => s.id);
 
-    // Clear old AI-generated abilities
-    state.abilities = [];
+  const corpse = upsertCorpseRecord(
+    name,
+    stats,
+    shadowIds,
+    inheritedTechniques
+  );
 
-    fakeAbilitiesText.forEach(a => {
-      state.abilities.push({
-        id: uid("ability"),
-        ...a,
-        role: "Offense / Control",
-        targetId: state.ui.currentBuffTargetId || "self"
-      });
-    });
-
-    saveState();
-    renderAbilities();
-    renderSummary();
-  }, 600);
-}
-
-function createAbilityCard(data) {
-  const ability = {
-    id: data.id || uid("ability"),
-    name: data.name || "",
-    role: data.role || "",
-    summary: data.summary || "",
-    action: data.action || "",
-    range: data.range || "",
-    target: data.target || "",
-    save: data.save || "",
-    dc: data.dc || "",
-    damage: data.damage || "",
-    effect: data.effect || "",
-    combo: data.combo || "",
-    targetId: data.targetId || "self"
-  };
-  state.abilities.push(ability);
-  saveState();
-  renderAbilities();
+  renderCorpseCard(corpse);
+  renderBuffTargetSelect();
   renderSummary();
+  saveState();
 }
 
-function renderAbilities() {
-  const container = document.getElementById("ai-abilities-container");
+function renderCorpseStatIfVisible() {
+  const name = qs("#corpse-name").value.trim();
+  if (!name) return;
+  const corpse = state.corpses.find((c) => c.name === name);
+  if (corpse) renderCorpseCard(corpse);
+}
+
+function handleEditBuffsForCorpse() {
+  const name = qs("#corpse-name").value.trim();
+  if (!name) return;
+  const corpse = state.corpses.find((c) => c.name === name);
+  if (!corpse) return;
+  state.ui.currentBuffTargetId = corpse.id;
+  renderBuffTargetSelect();
+  renderBuffCards();
+  renderSelectedBuffsSummary();
+  renderSummary();
+  saveState();
+  // scroll to panel 3
+  const panel3 = document.querySelector('[data-panel="3"]');
+  if (panel3) panel3.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ---------- PANEL 5: ABILITIES ----------
+
+function renderAbilityCards() {
+  const container = qs("#ability-cards-container");
   container.innerHTML = "";
+  if (!state.abilities.length) {
+    container.innerHTML =
+      '<p class="muted">No abilities yet. Generate with AI stub or add an empty ability card.</p>';
+    return;
+  }
 
-  state.abilities.forEach(ability => {
+  const targetOptions = Object.values(state.buffTargets);
+
+  state.abilities.forEach((ab) => {
     const card = document.createElement("div");
     card.className = "ability-card";
 
-    const header = document.createElement("div");
-    header.className = "ability-card-header";
+    const nameRow = document.createElement("div");
+    nameRow.className = "ability-name-row";
 
     const nameInput = document.createElement("input");
     nameInput.type = "text";
-    nameInput.value = ability.name;
-    nameInput.placeholder = "Ability Name";
+    nameInput.value = ab.name || "";
+    nameInput.placeholder = "Ability name";
     nameInput.addEventListener("input", () => {
-      ability.name = nameInput.value;
+      ab.name = nameInput.value;
       saveState();
       renderSummary();
     });
 
-    const tag = document.createElement("span");
-    tag.className = "ability-tag";
-    tag.textContent = "Shadow Ability";
-
-    header.appendChild(nameInput);
-    header.appendChild(tag);
-
-    const body = document.createElement("div");
-    body.className = "ability-card-body";
-
-    const roleLine = document.createElement("div");
-    roleLine.className = "ability-subtitle";
-    roleLine.textContent = "Role: Offense / Defense / Support / Control / Utility";
-    body.appendChild(roleLine);
-
-    const targetRow = document.createElement("div");
-    targetRow.className = "form-group";
-    const targetLabel = document.createElement("label");
-    targetLabel.textContent = "Assigned to";
-    const targetSelect = document.createElement("select");
-    Object.values(state.buffTargets).forEach(t => {
+    const targetSel = document.createElement("select");
+    targetOptions.forEach((t) => {
       const opt = document.createElement("option");
       opt.value = t.id;
-      opt.textContent =
-        t.type === "self"
-          ? "Elren (Primary User)"
-          : t.type === "corpse"
-          ? `Corpse: ${t.name}`
-          : `Ally: ${t.name}`;
-      targetSelect.appendChild(opt);
+      opt.textContent = t.name;
+      targetSel.appendChild(opt);
     });
-    targetSelect.value = ability.targetId || "self";
-    targetSelect.addEventListener("change", () => {
-      ability.targetId = targetSelect.value;
+    if (!ab.targetId || !state.buffTargets[ab.targetId]) {
+      ab.targetId = state.ui.currentBuffTargetId;
+    }
+    targetSel.value = ab.targetId;
+    targetSel.addEventListener("change", () => {
+      ab.targetId = targetSel.value;
       saveState();
       renderSummary();
     });
-    targetRow.appendChild(targetLabel);
-    targetRow.appendChild(targetSelect);
-    body.appendChild(targetRow);
 
-    const summaryTA = document.createElement("textarea");
-    summaryTA.placeholder = "Short description / visuals.";
-    summaryTA.value = ability.summary;
-    summaryTA.addEventListener("input", () => {
-      ability.summary = summaryTA.value;
+    nameRow.appendChild(nameInput);
+    nameRow.appendChild(targetSel);
+
+    const role = document.createElement("div");
+    role.className = "ability-role";
+    role.textContent =
+      "Role: Offense / Defense / Support / Control / Utility";
+
+    const descField = document.createElement("div");
+    descField.className = "field ability-main-text";
+    const dLabel = document.createElement("label");
+    dLabel.textContent = "Description";
+    const dTa = document.createElement("textarea");
+    dTa.rows = 3;
+    dTa.value = ab.description || "";
+    dTa.addEventListener("input", () => {
+      ab.description = dTa.value;
       saveState();
-      renderSummary();
     });
-    body.appendChild(summaryTA);
+    descField.appendChild(dLabel);
+    descField.appendChild(dTa);
 
     const miniGrid = document.createElement("div");
     miniGrid.className = "ability-mini-grid";
 
     const fields = [
-      { key: "action", label: "Action" },
-      { key: "range", label: "Range" },
-      { key: "target", label: "Target" },
-      { key: "save", label: "Save" },
-      { key: "dc", label: "DC" },
-      { key: "damage", label: "Damage" }
+      ["Action", "action"],
+      ["Range", "range"],
+      ["Target", "target"],
+      ["Save", "save"],
+      ["DC", "dc"],
+      ["Damage", "damage"]
     ];
-
-    fields.forEach(f => {
-      const fg = document.createElement("div");
-      fg.className = "form-group";
-      const lab = document.createElement("label");
-      lab.textContent = f.label;
+    fields.forEach(([label, key]) => {
+      const wrap = document.createElement("div");
+      wrap.className = "field";
+      const l = document.createElement("label");
+      l.textContent = label;
       const inp = document.createElement("input");
       inp.type = "text";
-      inp.value = ability[f.key] || "";
+      inp.value = ab[key] || "";
       inp.addEventListener("input", () => {
-        ability[f.key] = inp.value;
+        ab[key] = inp.value;
         saveState();
       });
-      fg.appendChild(lab);
-      fg.appendChild(inp);
-      miniGrid.appendChild(fg);
+      wrap.appendChild(l);
+      wrap.appendChild(inp);
+      miniGrid.appendChild(wrap);
     });
 
-    body.appendChild(miniGrid);
-
-    const effectTA = document.createElement("textarea");
-    effectTA.placeholder = "Mechanical effect: what happens on hit / failed save.";
-    effectTA.value = ability.effect;
-    effectTA.addEventListener("input", () => {
-      ability.effect = effectTA.value;
-      saveState();
-      renderSummary();
-    });
-    body.appendChild(effectTA);
-
-    const comboTA = document.createElement("textarea");
-    comboTA.placeholder = "Optional: how this interacts with other powers / combo logic.";
-    comboTA.value = ability.combo;
-    comboTA.addEventListener("input", () => {
-      ability.combo = comboTA.value;
+    const mechField = document.createElement("div");
+    mechField.className = "field ability-main-text";
+    const mLabel = document.createElement("label");
+    mLabel.textContent = "Mechanical effect: what happens on hit / failed save.";
+    const mTa = document.createElement("textarea");
+    mTa.rows = 3;
+    mTa.value = ab.mechanical || "";
+    mTa.addEventListener("input", () => {
+      ab.mechanical = mTa.value;
       saveState();
     });
-    body.appendChild(comboTA);
+    mechField.appendChild(mLabel);
+    mechField.appendChild(mTa);
+
+    const comboField = document.createElement("div");
+    comboField.className = "field ability-main-text";
+    const cLabel = document.createElement("label");
+    cLabel.textContent = "Optional: how this interacts with other powers / combo logic.";
+    const cTa = document.createElement("textarea");
+    cTa.rows = 2;
+    cTa.value = ab.combo || "";
+    cTa.addEventListener("input", () => {
+      ab.combo = cTa.value;
+      saveState();
+    });
+    comboField.appendChild(cLabel);
+    comboField.appendChild(cTa);
 
     const footer = document.createElement("div");
     footer.className = "ability-footer-row";
 
-    const leftBtns = document.createElement("div");
+    const left = document.createElement("div");
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "btn-secondary small-btn";
+    copyBtn.textContent = "Copy";
+    copyBtn.addEventListener("click", () => {
+      const text = `${ab.name}\n${ab.description}\nAction: ${ab.action} | Range: ${ab.range} | Target: ${ab.target} | Save: ${ab.save} DC ${ab.dc}\nDamage: ${ab.damage}\n${ab.mechanical}\n${ab.combo}`;
+      navigator.clipboard.writeText(text).catch(() => {});
+    });
     const rerollBtn = document.createElement("button");
-    rerollBtn.className = "btn secondary btn-sm";
+    rerollBtn.type = "button";
+    rerollBtn.className = "btn-secondary small-btn";
     rerollBtn.textContent = "Reroll";
     rerollBtn.addEventListener("click", () => {
-      // For now we just randomize some text stub.
-      ability.summary = ability.summary || "Shadow ability reshaped by reroll.";
-      ability.effect =
-        ability.effect ||
-        "On a failed save, targets take heavy damage; on success, half as much.";
+      // Simple stub "reroll" – tweak description slightly
+      ab.description =
+        ab.description ||
+        "Shadow power surges, causing a fresh variation of the attack. Describe how the shadows change form.";
+      dTa.value = ab.description;
       saveState();
-      renderAbilities();
-      renderSummary();
     });
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "btn secondary btn-sm";
-    copyBtn.textContent = "Copy";
-    copyBtn.addEventListener("click", async () => {
-      const text =
-        `${ability.name}\n\n${ability.summary}\n\nAction: ${ability.action}\nRange: ${ability.range}\n` +
-        `Target: ${ability.target}\nSave: ${ability.save} (DC ${ability.dc})\nDamage: ${ability.damage}\n\nEffect:\n${ability.effect}`;
-      try {
-        await navigator.clipboard.writeText(text);
-        alert("Ability copied to clipboard.");
-      } catch (e) {
-        console.error(e);
-      }
-    });
-    leftBtns.appendChild(copyBtn);
-    leftBtns.appendChild(rerollBtn);
+    left.appendChild(copyBtn);
+    left.appendChild(rerollBtn);
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn danger btn-sm";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => {
-      state.abilities = state.abilities.filter(a => a.id !== ability.id);
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "btn-danger small-btn";
+    delBtn.textContent = "Delete";
+    delBtn.addEventListener("click", () => {
+      state.abilities = state.abilities.filter((x) => x !== ab);
+      renderAbilityCards();
+      renderSummary();
       saveState();
-      renderAbilities();
-      renderSummary();
     });
 
-    footer.appendChild(leftBtns);
-    footer.appendChild(deleteBtn);
+    footer.appendChild(left);
+    footer.appendChild(delBtn);
 
-    card.appendChild(header);
-    card.appendChild(body);
+    card.appendChild(nameRow);
+    card.appendChild(role);
+    card.appendChild(descField);
+    card.appendChild(miniGrid);
+    card.appendChild(mechField);
+    card.appendChild(comboField);
     card.appendChild(footer);
 
     container.appendChild(card);
   });
 }
 
-// ---------- Summary panel (6) ----------
+function addEmptyAbilityCard() {
+  const ab = {
+    id: nextId("ability"),
+    name: "",
+    role: "",
+    description: "",
+    action: "",
+    range: "",
+    target: "",
+    save: "",
+    dc: "",
+    damage: "",
+    mechanical: "",
+    combo: "",
+    targetId: state.ui.currentBuffTargetId
+  };
+  state.abilities.push(ab);
+  renderAbilityCards();
+  renderSummary();
+  saveState();
+}
+
+function generateAbilitiesStub() {
+  // Stub, you can replace with actual API call later
+  const dc = state.ui.lastDC || 17;
+  state.abilities = [
+    {
+      id: nextId("ability"),
+      name: "Shadow Gale Barrage",
+      description:
+        "Conjure a flurry of razor-sharp shadow blades that slice through enemies in a 15-foot cone.",
+      action: "Action",
+      range: "15-ft cone",
+      target: "All creatures in cone",
+      save: "DEX save",
+      dc: String(dc),
+      damage: "6d8 necrotic",
+      mechanical:
+        "On a failed save, full damage and targets are briefly outlined in violet shadow (no benefit from invisibility for 1 round). On a success, half damage and no outline.",
+      combo: "Pairs well with restraining effects or fear-based control.",
+      targetId: state.ui.currentBuffTargetId
+    },
+    {
+      id: nextId("ability"),
+      name: "Shadow Asgard Ascendant",
+      description:
+        "The user swells with stolen shadows, taking on a towering Night Emperor form wreathed in black-and-violet flames.",
+      action: "Action",
+      range: "Self",
+      target: "Self",
+      save: "—",
+      dc: "",
+      damage: "Melee attacks +3d8 necrotic",
+      mechanical:
+        "For 1 minute, your size increases by one category, your reach increases by 5 ft, and your melee weapon attacks deal an extra 3d8 necrotic damage.",
+      combo: "Use when many buffs are active to maximize impact; stacks well with movement and defense buffs.",
+      targetId: state.ui.currentBuffTargetId
+    },
+    {
+      id: nextId("ability"),
+      name: "Grasping Coffin",
+      description:
+        "Shadows surge up from the ground to form a coffin of chains and blades around a single target.",
+      action: "Action",
+      range: "60 ft",
+      target: "One creature",
+      save: "STR or DEX save",
+      dc: String(dc),
+      damage: "4d10 necrotic on fail, 2d10 on success",
+      mechanical:
+        "On a failed save, target is restrained inside a cage of shadow chains until it escapes (action to repeat save at end of each turn). On a success, the coffin partially forms but the target slips free.",
+      combo: "Perfect setup for multi-attack corpses or allies; can pin down bosses.",
+      targetId: state.ui.currentBuffTargetId
+    }
+  ];
+  renderAbilityCards();
+  renderSummary();
+  saveState();
+}
+
+// ---------- PANEL 6: SUMMARY ----------
+
+function computeBuffTotalsForTarget(target) {
+  const totals = {
+    tempHP: 0,
+    speed: 0,
+    ac: 0,
+    acDark: 0,
+    saves: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 },
+    other: []
+  };
+
+  const buffs = target.buffs || {};
+  Object.entries(buffs).forEach(([buffId, count]) => {
+    const def = state.buffsCatalog[buffId];
+    if (!def) return;
+    const eff = def.effect;
+    if (eff.type === "tempHP") totals.tempHP += eff.amount * count;
+    else if (eff.type === "speed") totals.speed += eff.amount * count;
+    else if (eff.type === "ac") totals.ac += eff.amount * count;
+    else if (eff.type === "acDark") totals.acDark += eff.amount * count;
+    else if (eff.type === "saveBonus")
+      totals.saves[eff.ability] += eff.amountPerStack * count;
+    else totals.other.push({ buff: def, count });
+  });
+
+  return totals;
+}
 
 function renderSummary() {
-  const container = document.getElementById("summary-cards");
-  if (!container) return;
+  const container = qs("#summary-grid");
   container.innerHTML = "";
 
-  // Build a combined view of targets
   const targets = Object.values(state.buffTargets);
+  if (!targets.length) {
+    container.innerHTML =
+      "<p>No buff targets yet. Add shadows and targets to see summary.</p>";
+    return;
+  }
 
-  targets.forEach(target => {
+  const totals = computeSPUTotals();
+
+  targets.forEach((target) => {
     const card = document.createElement("div");
     card.className = "summary-card";
 
     const header = document.createElement("div");
-    header.className = "summary-card-header";
-
-    const title = document.createElement("h3");
-    title.textContent =
-      target.type === "self"
-        ? "Elren (Primary User)"
-        : target.type === "corpse"
-        ? `Corpse: ${target.name}`
-        : `Ally: ${target.name}`;
-    header.appendChild(title);
-
-    const tag = document.createElement("span");
+    header.className = "summary-header-row";
+    const nameEl = document.createElement("div");
+    nameEl.className = "summary-name";
+    nameEl.textContent = target.name;
+    const tag = document.createElement("div");
     tag.className = "summary-tag";
     tag.textContent =
-      target.type === "self" ? "SELF" : target.type === "corpse" ? "CORPSE" : "ALLY";
+      target.type === "self"
+        ? "PRIMARY USER"
+        : target.type === "ally"
+        ? "ALLY"
+        : "CORPSE";
+    header.appendChild(nameEl);
     header.appendChild(tag);
 
-    card.appendChild(header);
+    const pillRow = document.createElement("div");
+    pillRow.className = "summary-pill-row";
 
-    const statRow = document.createElement("div");
-    statRow.className = "summary-stat-row";
+    const buffTotals = computeBuffTotalsForTarget(target);
 
-    // Shadow power info
-    const totalShadows = state.shadows.length;
-    const totalSPU = state.shadows.reduce((sum, s) => sum + (s.active ? s.spu : 0), 0);
+    const corp = target.type === "corpse"
+      ? state.corpses.find((c) => c.id === target.id)
+      : null;
 
-    // For corpses, look up corpse stats
-    let corpseStats = null;
-    if (target.type === "corpse") {
-      corpseStats = state.corpses.find(c => c.id === target.id) || null;
-    }
-
-    const acVal =
-      target.type === "corpse" && corpseStats
-        ? corpseStats.stats.armorClass
-        : "—";
-    const hpVal =
-      target.type === "corpse" && corpseStats
-        ? `~${corpseStats.stats.hp} (base, plus temp HP from buffs)`
-        : "DM / character sheet";
-    const speedVal =
-      target.type === "corpse" && corpseStats
-        ? `${corpseStats.stats.speed} ft (before buffs)`
-        : "—";
-
-    const dcVal = state.ui.lastDC ? state.ui.lastDC : "—";
-
-    statRow.innerHTML = `
-      <div class="summary-stat-pill"><strong>AC</strong><span>${acVal}</span></div>
-      <div class="summary-stat-pill"><strong>HP</strong><span>${hpVal}</span></div>
-      <div class="summary-stat-pill"><strong>Speed</strong><span>${speedVal}</span></div>
-      <div class="summary-stat-pill"><strong>Shadow Pool</strong><span>${totalShadows} shadow(s), ${totalSPU} SPU active</span></div>
-      <div class="summary-stat-pill"><strong>Key DC</strong><span>${dcVal}</span></div>
-    `;
-    card.appendChild(statRow);
-
-    // Buff summary for this target
-    const buffsSection = document.createElement("div");
-    buffsSection.className = "summary-section";
-    buffsSection.innerHTML = `<h4>Shadow Buffs</h4>`;
-
-    const buffsList = document.createElement("ul");
-    const buffs = target.buffs || {};
-    if (!Object.keys(buffs).length) {
-      const li = document.createElement("li");
-      li.textContent = "None.";
-      buffsList.appendChild(li);
+    // AC pill
+    const acPill = document.createElement("div");
+    acPill.className = "summary-pill";
+    if (corp && corp.stats) {
+      const baseAc = corp.stats.ac;
+      const bonus = buffTotals.ac + buffTotals.acDark;
+      if (bonus) {
+        acPill.textContent = `AC ${baseAc + bonus} (base ${baseAc} +${bonus} from buffs)`;
+      } else {
+        acPill.textContent = `AC ${baseAc}`;
+      }
     } else {
-      Object.entries(buffs).forEach(([buffId, count]) => {
-        const buff = state.buffs[buffId];
-        if (!buff) return;
-        const effect = buff.effect || {};
-        let line = `${buff.name} ×${count} — `;
-        if (effect.type === "tempHP") {
-          line += `Total +${effect.perStack * count} temporary HP.`;
-        } else if (effect.type === "speed") {
-          line += `Total +${effect.perStack * count} ft speed.`;
-        } else if (effect.type === "save") {
-          line += `Total +${effect.perStack * count} to ${effect.stat} saves.`;
-        } else if (effect.type === "ac_dark") {
-          line += `Total +${effect.perStack * count} AC in dim light/darkness.`;
-        } else {
-          line += `Stacks: ${count}.`;
-        }
-        const li = document.createElement("li");
-        li.textContent = line;
-        buffsList.appendChild(li);
-      });
+      const bonus = buffTotals.ac + buffTotals.acDark;
+      if (bonus) acPill.textContent = `Your AC +${bonus} from buffs`;
+      else acPill.textContent = "AC: use character sheet";
     }
-    buffsSection.appendChild(buffsList);
-    card.appendChild(buffsSection);
 
-    // Abilities for this target
-    const abilitiesSection = document.createElement("div");
-    abilitiesSection.className = "summary-section";
-    abilitiesSection.innerHTML = `<h4>Abilities & Techniques</h4>`;
+    // HP pill
+    const hpPill = document.createElement("div");
+    hpPill.className = "summary-pill";
+    if (corp && corp.stats) {
+      if (buffTotals.tempHP) {
+        hpPill.textContent = `HP ~${corp.stats.hp} +${buffTotals.tempHP} temp HP`;
+      } else hpPill.textContent = `HP ~${corp.stats.hp}`;
+    } else {
+      if (buffTotals.tempHP)
+        hpPill.textContent = `Your HP +${buffTotals.tempHP} temp HP`;
+      else hpPill.textContent = "HP: use character sheet";
+    }
+
+    // Speed pill
+    const speedPill = document.createElement("div");
+    speedPill.className = "summary-pill";
+    if (corp && corp.stats) {
+      if (buffTotals.speed) {
+        speedPill.textContent = `Speed ${corp.stats.speed + buffTotals.speed} ft (base ${corp.stats.speed} +${buffTotals.speed})`;
+      } else speedPill.textContent = `Speed ${corp.stats.speed} ft`;
+    } else {
+      if (buffTotals.speed)
+        speedPill.textContent = `Your speed +${buffTotals.speed} ft`;
+      else speedPill.textContent = "Speed: use character sheet";
+    }
+
+    // Shadow pool pill
+    let targetShadowSpu = 0;
+    if (target.type === "corpse" && corp) {
+      targetShadowSpu = corp.stats.spuSum;
+    } else {
+      // use total active as generic
+      targetShadowSpu = totals.total;
+    }
+    const spuPill = document.createElement("div");
+    spuPill.className = "summary-pill";
+    spuPill.textContent = `Relevant Shadow Power: ${targetShadowSpu} SPU`;
+
+    const dcPill = document.createElement("div");
+    dcPill.className = "summary-pill";
+    if (state.ui.lastDC) {
+      dcPill.textContent = `Shadow DC: ${state.ui.lastDC}`;
+    } else {
+      dcPill.textContent = "Shadow DC: use spell save DC or DC helper";
+    }
+
+    pillRow.appendChild(acPill);
+    pillRow.appendChild(hpPill);
+    pillRow.appendChild(speedPill);
+    pillRow.appendChild(spuPill);
+    pillRow.appendChild(dcPill);
+
+    // Buffs summary
+    const buffsTitle = document.createElement("div");
+    buffsTitle.className = "summary-section-title";
+    buffsTitle.textContent = "Shadow Buffs";
+
+    const buffsSummary = document.createElement("div");
+    const pieces = [];
+    if (buffTotals.tempHP) pieces.push(`+${buffTotals.tempHP} temp HP`);
+    if (buffTotals.speed) pieces.push(`+${buffTotals.speed} ft speed`);
+    const savePieces = [];
+    Object.entries(buffTotals.saves).forEach(([ab, val]) => {
+      if (val) savePieces.push(`+${val} ${ab} saves`);
+    });
+    if (savePieces.length) pieces.push(savePieces.join(", "));
+    if (buffTotals.ac) pieces.push(`+${buffTotals.ac} AC`);
+    if (buffTotals.acDark)
+      pieces.push(`+${buffTotals.acDark} AC in dim light/darkness`);
+    const otherCount = buffTotals.other.length;
+    if (otherCount) pieces.push(`${otherCount} other shadow buff(s)`);
+
+    if (!pieces.length) {
+      buffsSummary.textContent = "No numeric buffs yet.";
+    } else {
+      buffsSummary.textContent = pieces.join("; ");
+    }
+
+    // optional detailed breakdown
+    const details = document.createElement("details");
+    details.className = "summary-details";
+    const summaryEl = document.createElement("summary");
+    summaryEl.textContent = "Show buff breakdown";
+    details.appendChild(summaryEl);
+
+    const list = document.createElement("ul");
+    list.className = "summary-list";
+
+    const targetBuffs = target.buffs || {};
+    Object.entries(targetBuffs).forEach(([buffId, count]) => {
+      const def = state.buffsCatalog[buffId];
+      if (!def) return;
+      const li = document.createElement("li");
+      let effectText = "";
+      const eff = def.effect;
+      if (eff.type === "tempHP")
+        effectText = `Total +${eff.amount * count} temp HP.`;
+      else if (eff.type === "speed")
+        effectText = `Total +${eff.amount * count} ft speed.`;
+      else if (eff.type === "ac")
+        effectText = `Total +${eff.amount * count} AC.`;
+      else if (eff.type === "acDark")
+        effectText = `Total +${eff.amount * count} AC in darkness.`;
+      else if (eff.type === "saveBonus")
+        effectText = `Total +${eff.amountPerStack * count} to ${
+          eff.ability
+        } saves.`;
+      else if (eff.type === "advSave")
+        effectText = `Advantage on ${eff.ability} saves.`;
+      else if (eff.type === "advCheck")
+        effectText = `Advantage on ${eff.ability} ability checks.`;
+      else effectText = "";
+
+      const totalCost = buffStackCost(def.baseCost, count);
+      li.textContent = `${def.name} ×${count} — SPU spent: ${totalCost}. ${effectText}`;
+      list.appendChild(li);
+    });
+
+    details.appendChild(list);
+
+    // Abilities section
+    const abilitiesTitle = document.createElement("div");
+    abilitiesTitle.className = "summary-section-title";
+    abilitiesTitle.textContent = "Abilities & Techniques";
 
     const abilitiesList = document.createElement("ul");
-    const abilitiesForTarget = state.abilities.filter(a => a.targetId === target.id);
+    abilitiesList.className = "summary-list";
+    const abilitiesForTarget = state.abilities.filter(
+      (ab) => ab.targetId === target.id
+    );
     if (!abilitiesForTarget.length) {
       const li = document.createElement("li");
-      li.textContent = "No AI ability cards assigned yet.";
+      li.textContent = "No AI or custom ability cards assigned yet.";
       abilitiesList.appendChild(li);
     } else {
-      abilitiesForTarget.forEach(a => {
+      abilitiesForTarget.forEach((ab) => {
         const li = document.createElement("li");
-        li.textContent = `${a.name || "Unnamed Ability"} – Action: ${a.action || "?"}, Range: ${
-          a.range || "?"
-        }, Save: ${a.save || "-"}${a.dc ? ` (DC ${a.dc})` : ""}, Damage: ${a.damage || "-"}.`;
+        const dcText = ab.dc ? ` (DC ${ab.dc})` : "";
+        li.textContent = `${ab.name} — ${ab.action || "Action"}; Range ${
+          ab.range || "—"
+        }; Target ${ab.target || "—"}; Save ${
+          ab.save || "—"
+        }${dcText}; Damage ${ab.damage || "—"}.`;
         abilitiesList.appendChild(li);
       });
     }
-    abilitiesSection.appendChild(abilitiesList);
-    card.appendChild(abilitiesSection);
 
-    // For corpses, show inherited techniques list
-    if (target.type === "corpse" && corpseStats) {
-      const corpseTechSection = document.createElement("div");
-      corpseTechSection.className = "summary-section";
-      corpseTechSection.innerHTML = `<h4>Inherited Techniques</h4>`;
-      const ul = document.createElement("ul");
+    // Inherited techniques (corpses only)
+    let inheritTitle, inheritList;
+    if (corp) {
+      inheritTitle = document.createElement("div");
+      inheritTitle.className = "summary-section-title";
+      inheritTitle.textContent = "Inherited Shadow Techniques";
 
-      const usedShadows = state.shadows.filter(s =>
-        (corpseStats.shadowIds || []).includes(s.id)
-      );
-      const techniques = [];
-      usedShadows.forEach(sh => {
-        (sh.techniquesText || "")
-          .split("\n")
-          .map(x => x.trim())
-          .filter(Boolean)
-          .forEach(t => {
-            if (!techniques.includes(t)) techniques.push(t);
-          });
-      });
-      if (!techniques.length) {
-        const li = document.createElement("li");
-        li.textContent = "None recorded. Fill techniques on shadows in panel 2.";
-        ul.appendChild(li);
-      } else {
-        techniques.forEach(t => {
+      inheritList = document.createElement("ul");
+      inheritList.className = "summary-list";
+      if (corp.inheritedTechniques && corp.inheritedTechniques.length) {
+        corp.inheritedTechniques.forEach((t) => {
           const li = document.createElement("li");
           li.textContent = t;
-          ul.appendChild(li);
+          inheritList.appendChild(li);
         });
+      } else {
+        const li = document.createElement("li");
+        li.textContent = "None recorded.";
+        inheritList.appendChild(li);
       }
-      corpseTechSection.appendChild(ul);
-      card.appendChild(corpseTechSection);
     }
 
     // Notes
-    const notesSection = document.createElement("div");
-    notesSection.className = "summary-section";
-    notesSection.innerHTML = `<h4>Notes</h4>`;
-    const notesDiv = document.createElement("div");
-    notesDiv.className = "summary-notes";
-    notesDiv.setAttribute("contenteditable", "true");
-    notesDiv.dataset.targetId = target.id;
-    notesDiv.textContent =
+    const notesTitle = document.createElement("div");
+    notesTitle.className = "summary-section-title";
+    notesTitle.textContent = "Notes / Rulings";
+
+    const notesBox = document.createElement("div");
+    notesBox.className = "summary-notes";
+    notesBox.contentEditable = "true";
+    notesBox.textContent =
       target.notes ||
-      (target.type === "self"
-        ? "Use this for quick rulings or reminders about Elren’s current form."
-        : "Use this for conditions, vulnerabilities, or GM tweaks.");
-    notesDiv.addEventListener("input", () => {
-      target.notes = notesDiv.textContent;
+      "Use this for quick rulings, edge cases, or reminders (editable).";
+    notesBox.addEventListener("input", () => {
+      target.notes = notesBox.textContent;
       saveState();
     });
-    notesSection.appendChild(notesDiv);
-    card.appendChild(notesSection);
+
+    card.appendChild(header);
+    card.appendChild(pillRow);
+    card.appendChild(buffsTitle);
+    card.appendChild(buffsSummary);
+    card.appendChild(details);
+    card.appendChild(abilitiesTitle);
+    card.appendChild(abilitiesList);
+    if (corp) {
+      card.appendChild(inheritTitle);
+      card.appendChild(inheritList);
+    }
+    card.appendChild(notesTitle);
+    card.appendChild(notesBox);
 
     container.appendChild(card);
   });
-
-  // Summary buttons
-  const btnSave = document.getElementById("btn-save");
-  const btnPrint = document.getElementById("btn-print");
-  const btnReset = document.getElementById("btn-reset");
-
-  btnSave.onclick = () => {
-    saveState();
-    alert("Shadow Fruit data saved.");
-  };
-  btnPrint.onclick = () => {
-    window.print();
-  };
-  btnReset.onclick = () => {
-    if (!confirm("Reset all Shadow Fruit data in this browser?")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    location.reload();
-  };
 }
+
+// ---------- COLLAPSIBLE ----------
+
+function initCollapsible() {
+  qsa(".card-collapsible").forEach((card) => {
+    const panelId = card.getAttribute("data-panel");
+    if (state.ui.collapsedPanels[panelId]) {
+      card.classList.add("collapsed");
+    }
+    const btn = card.querySelector(".collapse-toggle");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      card.classList.toggle("collapsed");
+      state.ui.collapsedPanels[panelId] = card.classList.contains(
+        "collapsed"
+      );
+      saveState();
+    });
+  });
+}
+
+// ---------- GLOBAL BUTTONS ----------
+
+function handleSaveNow() {
+  saveState();
+  alert("Shadow Fruit data saved to your browser.");
+}
+
+function handlePrint() {
+  window.print();
+}
+
+function handleReset() {
+  if (!confirm("Reset all data for the Shadow Fruit system?")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  window.location.reload();
+}
+
+// ---------- INIT DOM ----------
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadState();
+  ensureBaseState();
+  populateShadowSelects();
+
+  // attach listeners
+  qs("#btn-calc-shadow").addEventListener("click", handleCalcShadow);
+  qs("#btn-add-shadow").addEventListener("click", handleAddShadow);
+
+  qs("#btn-add-ally").addEventListener("click", handleAddAllyTarget);
+
+  qs("#buff-tools-select").value = state.ui.buffToolsView || "hide";
+  qs("#buff-tools-select").addEventListener(
+    "change",
+    handleBuffToolsViewChange
+  );
+  handleBuffToolsViewChange();
+
+  qs("#btn-add-custom-buff").addEventListener("click", handleAddCustomBuff);
+  qs("#btn-calc-dc").addEventListener("click", handleCalcDC);
+
+  qs("#corpse-shadow-mode").addEventListener("change", () => {
+    const mode = qs("#corpse-shadow-mode").value;
+    qs("#corpse-shadow-select").disabled = mode !== "selected";
+  });
+  qs("#corpse-shadow-select").disabled =
+    qs("#corpse-shadow-mode").value !== "selected";
+
+  qs("#btn-generate-corpse").addEventListener(
+    "click",
+    handleGenerateCorpse
+  );
+  qs("#btn-edit-buffs-corpse").addEventListener(
+    "click",
+    handleEditBuffsForCorpse
+  );
+
+  qs("#btn-generate-abilities").addEventListener(
+    "click",
+    generateAbilitiesStub
+  );
+  qs("#btn-add-empty-ability").addEventListener(
+    "click",
+    addEmptyAbilityCard
+  );
+
+  qs("#btn-save-now").addEventListener("click", handleSaveNow);
+  qs("#btn-print").addEventListener("click", handlePrint);
+  qs("#btn-reset").addEventListener("click", handleReset);
+
+  initCollapsible();
+
+  // initial renders
+  renderShadows();
+  renderBuffTargetSelect();
+  renderBuffCards();
+  renderSelectedBuffsSummary();
+  renderCorpseShadowSelect();
+  renderAbilityCards();
+  updateShadowTotals(); // includes summary
+});
